@@ -1,8 +1,9 @@
 const PACKET_LENGTHS = new Map([[0x00,3],[0x01,33],[0x03,3],[0x20,3],[0x21,3],[0x50,3],[0x51,2],[0x52,2]]);
 
 export class MonomeSerial {
-  constructor({onKey=()=>{}, onStatus=()=>{}} = {}){
-    this.port = null; this.reader = null; this.writer = null; this.onKey = onKey; this.onStatus = onStatus; this.frame = Array.from({length:8},()=>Array(8).fill(0)); this.reading = false;
+  constructor({onKey=()=>{}, onStatus=()=>{}, rows=8, cols=16} = {}){
+    this.rows=rows; this.cols=cols;
+    this.port = null; this.reader = null; this.writer = null; this.onKey = onKey; this.onStatus = onStatus; this.frame = Array.from({length:rows},()=>Array(cols).fill(0)); this.reading = false;
   }
   get supported(){ return 'serial' in navigator; }
   async connect(){
@@ -29,11 +30,11 @@ export class MonomeSerial {
   }
   async clear(){ await this.send([0x12]); this.frame.forEach(row=>row.fill(0)); }
   async all(on){ await this.send([on?0x13:0x12]); this.frame.forEach(row=>row.fill(on?15:0)); }
-  async ledSet(x,y,on){ if(x<0||x>7||y<0||y>7)return; this.frame[y][x]=on?15:0; await this.send([on?0x11:0x10,x,y]); }
-  async levelSet(x,y,level){ if(x<0||x>7||y<0||y>7)return; const l=Math.max(0,Math.min(15,level|0)); this.frame[y][x]=l; await this.send([0x18,x,y,l]); }
+  async ledSet(x,y,on){ if(x<0||x>=this.cols||y<0||y>=this.rows)return; this.frame[y][x]=on?15:0; await this.send([on?0x11:0x10,x,y]); }
+  async levelSet(x,y,level){ if(x<0||x>=this.cols||y<0||y>=this.rows)return; const l=Math.max(0,Math.min(15,level|0)); this.frame[y][x]=l; await this.send([0x18,x,y,l]); }
   async intensity(level){ await this.send([0x17, Math.max(0,Math.min(15,level|0))]); }
   async draw(frame){
-    for(let y=0;y<8;y++) for(let x=0;x<8;x++){
+    for(let y=0;y<this.rows;y++) for(let x=0;x<this.cols;x++){
       const next = Math.max(0,Math.min(15,frame[y]?.[x] ?? 0));
       if(next !== this.frame[y][x]) await this.levelSet(x,y,next);
     }

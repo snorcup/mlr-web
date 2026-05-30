@@ -4,10 +4,10 @@ MLR Web is split into browser-native adapters and a small core state machine. Ha
 
 ## Components
 
-- `MonomeSerial`: Web Serial adapter for monome classic byte packets. Emits normalized `{x, y, state}` key events and accepts an 8×8 LED framebuffer.
+- `MonomeSerial`: Web Serial adapter for monome classic byte packets. Emits normalized `{x, y, state}` key events and accepts an 8×16 LED framebuffer.
 - `AudioEngine`: Web Audio clip and track manager. Handles buffer loading, track jumps, rate, volume, and position slices.
 - `MidiManager`: Web MIDI adapter. Currently normalizes MIDI clock/start/stop. Future controller messages should be mapped here before entering `MlrCore`.
-- `MlrCore`: Pure-ish sampler logic: grid key handling, modifier slice paging, quantized queueing, and LED framebuffer generation.
+- `MlrCore`: Pure-ish sampler logic: grid key handling, direct 16-slice grid mapping, quantized queueing, and LED framebuffer generation.
 - `UI`: DOM adapter and on-screen grid mirror.
 
 ## Data Flow
@@ -22,14 +22,13 @@ AudioEngine       LED framebuffer
 Web Audio       MonomeSerial + UI mirror
 ```
 
-## 16 slices on an 8×8 classic
+## 16 slices on an 8×16 classic
 
-Rows 0–6 are tracks. Columns 0–7 represent eight visible slice positions. The modifier selects the hidden page:
+Rows 0–6 are tracks. Columns 0–15 represent the complete slice range directly:
 
-- modifier off: `slice = x`
-- modifier on: `slice = x + 8`
+- `slice = x`
 
-The bottom-right grid pad is reserved as the hardware modifier. The browser also maps the `Alt` key and a UI checkbox.
+The bottom row is reserved for function controls. Columns 0–2 select CUT/REC/TIME and column 14 toggles quantize.
 
 ## Future MIDI Support
 

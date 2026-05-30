@@ -1,10 +1,10 @@
 # Monome Classic USB Notes
 
-This app talks directly to monome classic over USB serial using the native packet protocol. It does not require serialosc.
+This app talks directly to an 8×16 monome classic over USB serial using the native packet protocol. It does not require serialosc.
 
 ## Browser pairing
 
-Click **Connect monome USB**. Chromium shows a serial device picker. Pick the FTDI/monome device.
+Click **Connect monome USB**. Chromium shows a serial device picker. Pick the FTDI/monome device. The app expects an 8-row by 16-column classic layout and preserves key coordinates through column `15`.
 
 ## Packet subset used
 

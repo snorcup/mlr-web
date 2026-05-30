@@ -4,7 +4,8 @@ export class UI {
   }
   makeGrid(){
     this.grid.innerHTML='';
-    for(let y=0;y<8;y++) for(let x=0;x<8;x++){ const b=document.createElement('button'); b.className='pad'+(y===7?' fn':''); b.dataset.x=x; b.dataset.y=y; b.ariaLabel=`pad ${x},${y}`; this.grid.appendChild(b); }
+    this.grid.style.setProperty('--grid-cols','16');
+    for(let y=0;y<8;y++) for(let x=0;x<16;x++){ const b=document.createElement('button'); b.className='pad'+(y===7?' fn':''); b.dataset.x=x; b.dataset.y=y; b.ariaLabel=`pad ${x},${y}`; this.grid.appendChild(b); }
   }
   makeTracks(){
     this.tracks.innerHTML='';
@@ -16,7 +17,7 @@ export class UI {
     this.grid.addEventListener('pointerleave', e=>{ const p=e.target.closest('.pad'); if(p) fn({x:+p.dataset.x,y:+p.dataset.y,state:false}); });
   }
   render(frame){
-    [...this.grid.children].forEach(el=>{ const x=+el.dataset.x,y=+el.dataset.y,l=frame[y][x]; el.classList.toggle('on',l>=12); el.classList.toggle('dim',l>0&&l<12); });
+    [...this.grid.children].forEach(el=>{ const x=+el.dataset.x,y=+el.dataset.y,l=frame[y]?.[x] ?? 0; el.classList.toggle('on',l>=12); el.classList.toggle('dim',l>0&&l<12); });
   }
   setClipNames(clips){ clips.slice(0,7).forEach((clip,i)=>{ const el=document.getElementById(`clip-${i}`); if(el) el.textContent=clip.name; }); }
 }

@@ -4,16 +4,14 @@ A browser-based, MLR-inspired live sample-cutting instrument for a **monome clas
 
 ## Status
 
-Initial implementation: usable browser prototype with Dockerized static hosting, monome classic serial driver, 7-track sample slicing, 16 slices per track using a modifier page, internal quantized clock, and MIDI plumbing scaffold.
+Initial implementation: usable browser prototype with Dockerized static hosting, monome classic serial driver, 7-track sample slicing with 16 direct slice columns on an 8×16 monome, internal quantized clock, and MIDI plumbing scaffold.
 
 ## Features
 
 - Direct monome classic USB support via Web Serial.
 - Native serial protocol support for key input and LED output.
-- 7 playable track rows on an 8×8 grid.
-- 16 slices per track:
-  - default page: slices 1–8
-  - modifier held: slices 9–16
+- 7 playable track rows on an 8×16 grid.
+- 16 slices per track mapped directly across columns 1–16.
 - Web Audio playback with per-track jump, rate, volume, and loop-ready model.
 - Internal quantization clock based on `AudioContext.currentTime`.
 - Web MIDI manager that already handles MIDI clock (`0xF8`), start (`0xFA`), and stop (`0xFC`).
@@ -62,8 +60,7 @@ Then open the Vite URL, usually `http://localhost:5173`.
 2. Load one or more audio files with the file picker.
 3. Use the on-screen grid or physical monome:
    - rows 1–7 trigger tracks
-   - columns 1–8 trigger slices 1–8
-   - hold the modifier to trigger slices 9–16
+   - columns 1–16 trigger slices 1–16 directly
    - bottom row contains view/function controls
 4. Click **Connect monome USB** and choose the FTDI/monome device from the browser picker.
 5. Optional: click **Enable MIDI** to initialize Web MIDI support. The current implementation listens for MIDI clock/start/stop and exposes the path for future sync work.
