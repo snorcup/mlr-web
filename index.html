@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MLR Web</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <main class="app-shell">
+    <header>
+      <div>
+        <p class="eyebrow">monome classic + Web Audio</p>
+        <h1>MLR Web</h1>
+      </div>
+      <div class="status-row">
+        <span id="audioStatus" class="pill warn">audio suspended</span>
+        <span id="monomeStatus" class="pill">monome offline</span>
+        <span id="midiStatus" class="pill">midi idle</span>
+      </div>
+    </header>
+
+    <section class="controls">
+      <button id="startAudio">Start audio</button>
+      <button id="connectMonome">Connect monome USB</button>
+      <button id="connectMidi">Enable MIDI</button>
+      <label>BPM <input id="bpm" type="number" min="20" max="300" value="120" /></label>
+      <label><input id="quantize" type="checkbox" checked /> Quantize</label>
+      <label><input id="slicePage" type="checkbox" /> Hold modifier: slices 9–16</label>
+      <input id="filePicker" type="file" accept="audio/*" multiple />
+    </section>
+
+    <section class="workspace">
+      <div>
+        <h2>Grid mirror</h2>
+        <div id="grid" class="grid" aria-label="8 by 8 monome grid mirror"></div>
+        <p class="hint">Rows 1–7 trigger tracks. Bottom row: view controls + modifier. Hold modifier for slices 9–16.</p>
+      </div>
+      <aside>
+        <h2>Tracks</h2>
+        <div id="tracks"></div>
+      </aside>
+    </section>
+
+    <section class="docs-card">
+      <h2>Quick use</h2>
+      <ol>
+        <li>Open in Chrome/Edge over HTTPS or localhost.</li>
+        <li>Click <strong>Start audio</strong>, then load one or more audio files.</li>
+        <li>Click pads in rows 1–7 to jump through slices 1–8; hold modifier for slices 9–16.</li>
+        <li>Connect a monome classic via USB and choose it from the browser serial picker.</li>
+      </ol>
+    </section>
+  </main>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>
