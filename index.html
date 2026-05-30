@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MLR Web</title>
-  <link rel="stylesheet" href="css/style.css?v=8x16-mobile-2" />
+  <link rel="stylesheet" href="css/style.css?v=patterns-1" />
 </head>
 <body>
   <main class="app-shell">
@@ -29,11 +29,22 @@
       <input id="filePicker" type="file" accept="audio/*" multiple />
     </section>
 
+    <section class="patterns" aria-label="Pattern recorder">
+      <h2>Patterns</h2>
+      <div class="pattern-grid">
+        <div class="pattern-slot"><strong>P1</strong><button data-pattern-action="record" data-pattern-slot="0">Rec</button><button data-pattern-action="play" data-pattern-slot="0" disabled>Play</button><span id="pattern-0-status" class="muted">empty</span></div>
+        <div class="pattern-slot"><strong>P2</strong><button data-pattern-action="record" data-pattern-slot="1">Rec</button><button data-pattern-action="play" data-pattern-slot="1" disabled>Play</button><span id="pattern-1-status" class="muted">empty</span></div>
+        <div class="pattern-slot"><strong>P3</strong><button data-pattern-action="record" data-pattern-slot="2">Rec</button><button data-pattern-action="play" data-pattern-slot="2" disabled>Play</button><span id="pattern-2-status" class="muted">empty</span></div>
+        <div class="pattern-slot"><strong>P4</strong><button data-pattern-action="record" data-pattern-slot="3">Rec</button><button data-pattern-action="play" data-pattern-slot="3" disabled>Play</button><span id="pattern-3-status" class="muted">empty</span></div>
+      </div>
+      <p class="hint">Record captures slice hits with timing. Play loops the captured gesture. On the monome bottom row: columns 9–12 play P1–P4; columns 13–16 record P1–P4.</p>
+    </section>
+
     <section class="workspace">
       <div>
         <h2>Grid mirror</h2>
         <div id="grid" class="grid" aria-label="8 by 16 monome grid mirror"></div>
-        <p class="hint">Rows 1–7 trigger tracks. Columns 1–16 trigger slices 1–16 directly. Bottom row: view controls + quantize.</p>
+        <p class="hint">Rows 1–7 trigger tracks. Columns 1–16 trigger slices 1–16 directly. Bottom row: columns 1–3 view modes, 9–12 pattern play, 13–16 pattern record.</p>
       </div>
       <aside>
         <h2>Tracks</h2>
@@ -47,10 +58,12 @@
         <li>Open in Chrome/Edge over HTTPS or localhost.</li>
         <li>Click <strong>Start audio</strong>, then load one or more audio files.</li>
         <li>Click pads in rows 1–7 to jump directly through slices 1–16.</li>
+        <li>Record patterns with the P1–P4 Rec buttons, then loop them with Play.</li>
+        <li>On hardware, bottom row columns 9–12 play patterns and columns 13–16 record patterns.</li>
         <li>Connect a monome classic via USB and choose it from the browser serial picker.</li>
       </ol>
     </section>
   </main>
-  <script type="module" src="js/app.js?v=8x16-mobile-2"></script>
+  <script type="module" src="js/app.js?v=patterns-1"></script>
 </body>
 </html>

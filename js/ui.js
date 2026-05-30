@@ -19,6 +19,20 @@ export class UI {
   render(frame){
     [...this.grid.children].forEach(el=>{ const x=+el.dataset.x,y=+el.dataset.y,l=frame[y]?.[x] ?? 0; el.classList.toggle('on',l>=12); el.classList.toggle('dim',l>0&&l<12); });
   }
+  renderPatterns(patterns=[]){
+    patterns.forEach((pattern,i)=>{
+      const rec=document.querySelector(`[data-pattern-action="record"][data-pattern-slot="${i}"]`);
+      const play=document.querySelector(`[data-pattern-action="play"][data-pattern-slot="${i}"]`);
+      const status=document.getElementById(`pattern-${i}-status`);
+      rec?.classList.toggle('recording', !!pattern.recording);
+      play?.classList.toggle('playing', !!pattern.playing);
+      play?.toggleAttribute('disabled', !pattern.events.length);
+      if(status){
+        const length = pattern.length ? `${pattern.length.toFixed(2)}s` : 'empty';
+        status.textContent = pattern.recording ? `recording ${pattern.events.length}` : pattern.playing ? `playing ${pattern.events.length} / ${length}` : `${pattern.events.length} event(s) / ${length}`;
+      }
+    });
+  }
   setClipNames(clips){ clips.slice(0,7).forEach((clip,i)=>{ const el=document.getElementById(`clip-${i}`); if(el) el.textContent=clip.name; }); }
 }
 

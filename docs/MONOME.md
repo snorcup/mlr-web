@@ -6,6 +6,14 @@ This app talks directly to an 8×16 monome classic over USB serial using the nat
 
 Click **Connect monome USB**. Chromium shows a serial device picker. Pick the FTDI/monome device. The app expects an 8-row by 16-column classic layout and preserves key coordinates through column `15`.
 
+## Grid layout
+
+- Rows 0–6: track slice triggers.
+- Columns 0–15: slices 1–16 for each track row.
+- Bottom row columns 0–2: CUT/REC/TIME view selectors.
+- Bottom row columns 8–11: play/stop patterns P1–P4.
+- Bottom row columns 12–15: start/stop recording patterns P1–P4.
+
 ## Packet subset used
 
 To device:

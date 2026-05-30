@@ -12,6 +12,7 @@ Initial implementation: usable browser prototype with Dockerized static hosting,
 - Native serial protocol support for key input and LED output.
 - 7 playable track rows on an 8×16 grid.
 - 16 slices per track mapped directly across columns 1–16.
+- Four pattern recorder slots that capture slice gestures and loop them back.
 - Web Audio playback with per-track jump, rate, volume, and loop-ready model.
 - Internal quantization clock based on `AudioContext.currentTime`.
 - Web MIDI manager that already handles MIDI clock (`0xF8`), start (`0xFA`), and stop (`0xFC`).
@@ -62,8 +63,14 @@ Then open the Vite URL, usually `http://localhost:5173`.
    - rows 1–7 trigger tracks
    - columns 1–16 trigger slices 1–16 directly
    - bottom row contains view/function controls
-4. Click **Connect monome USB** and choose the FTDI/monome device from the browser picker.
-5. Optional: click **Enable MIDI** to initialize Web MIDI support. The current implementation listens for MIDI clock/start/stop and exposes the path for future sync work.
+   - bottom row columns 9–12 play patterns P1–P4
+   - bottom row columns 13–16 record patterns P1–P4
+4. Pattern recording:
+   - click **Rec** on P1–P4, perform slice hits, then click **Rec** again to stop
+   - click **Play** to loop the captured gesture
+   - pattern length is the record duration
+5. Click **Connect monome USB** and choose the FTDI/monome device from the browser picker.
+6. Optional: click **Enable MIDI** to initialize Web MIDI support. The current implementation listens for MIDI clock/start/stop and exposes the path for future sync work.
 
 ## Hardware Notes
 

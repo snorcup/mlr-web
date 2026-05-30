@@ -35,3 +35,31 @@ test('monome parser extracts key packets', () => {
 test('monome parser preserves 8x16 column coordinates', () => {
   assert.deepEqual(parseMonomePackets([0x21,15,6]), [{x:15,y:6,state:true}]);
 });
+
+test('pattern recording stores grid hits with relative timing', () => {
+  const core = new MlrCore({audio:{positionSlice:()=>-1}});
+  core.setQuantize(false);
+  core.startPatternRecord(0, 10);
+  core.handleGridKey({x:4,y:2,state:true}, 10.25);
+  core.stopPatternRecord(0, 11);
+
+  assert.deepEqual(core.state.patterns[0].events, [{time:0.25, track:2, slice:4}]);
+  assert.equal(core.state.patterns[0].length, 1);
+});
+
+test('pattern playback emits recorded events on time and loops', () => {
+  const calls=[];
+  const core = new MlrCore({audio:{jump:(track,slice)=>calls.push({track,slice}), positionSlice:()=>-1}});
+  core.setQuantize(false);
+  core.startPatternRecord(0, 10);
+  core.handleGridKey({x:4,y:2,state:true}, 10.25);
+  core.stopPatternRecord(0, 11);
+
+  core.startPatternPlayback(0, 20);
+  core.tick(20.24);
+  assert.deepEqual(calls, [{track:2,slice:4}]);
+  core.tick(20.25);
+  assert.deepEqual(calls, [{track:2,slice:4},{track:2,slice:4}]);
+  core.tick(21.25);
+  assert.deepEqual(calls, [{track:2,slice:4},{track:2,slice:4},{track:2,slice:4}]);
+});
