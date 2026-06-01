@@ -25,7 +25,7 @@ ui.onFilePick = (trackIndex) => {
   picker.click();
 };
 
-const core = new MlrCore({audio, onRender: async (frame, state) => { ui.render(frame); ui.renderPatterns(state.patterns); await monome?.draw(frame); }});
+const core = new MlrCore({audio, onRender: async (frame, state) => { ui.render(frame); ui.renderPatterns(state.patterns); updateFnReference(state); await monome?.draw(frame); }});
 const midi = new MidiManager({
   onClock: () => core.tick(audio.context?.currentTime ?? performance.now()/1000),
   onStart: () => setPill('midiStatus','midi clock started','ok'),
@@ -34,6 +34,29 @@ const midi = new MidiManager({
 });
 
 ui.onPad(e => core.handleGridKey(e, now()));
+
+function updateFnReference(state){
+  // View buttons
+  document.getElementById('fn-cut').classList.toggle('active', state.view === 'CUT');
+  document.getElementById('fn-rec').classList.toggle('active', state.view === 'REC');
+  document.getElementById('fn-time').classList.toggle('active', state.view === 'TIME');
+
+  // Pattern play/record LEDs
+  state.patterns.forEach((p, i) => {
+    const playBtn = document.getElementById(`fn-p${i+1}-play`);
+    const recBtn = document.getElementById(`fn-p${i+1}-rec`);
+    if(playBtn) playBtn.classList.toggle('active', p.playing);
+    if(recBtn) recBtn.classList.toggle('active', p.recording);
+  });
+
+  // Hint text per view
+  const hint = document.getElementById('fn-hint');
+  if(hint){
+    if(state.view === 'CUT') hint.textContent = 'CUT — Tap a track pad to loop from that slice. Tap the same pad again to stop.';
+    else if(state.view === 'REC') hint.textContent = 'REC — Same as CUT. Press a REC button (P1–P4), perform slice hits, press again to stop recording.';
+    else if(state.view === 'TIME') hint.textContent = 'TIME — Press a track pad to set loop start. Press again for loop end. Playback loops within the region.';
+  }
+}
 
 document.getElementById('startAudio').onclick = async () => { await audio.start(); setPill('audioStatus','audio ready','ok'); };
 document.getElementById('filePicker').onchange = async e => { await loadFilesIntoEngine(e.target.files, null); };
@@ -72,3 +95,4 @@ function now(){ return audio.context?.currentTime ?? performance.now()/1000; }
 
 function loop(){ if(audio.context) core.tick(audio.context.currentTime); requestAnimationFrame(loop); }
 loop(); core.render();
+updateFnReference(core.state);
