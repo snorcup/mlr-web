@@ -31,12 +31,20 @@ export class MonomeSerial {
     if (!this.port) throw new Error('No serial port was selected.');
     const info = this.port.getInfo();
     console.log('[monome] opening port:', info.usbVendorId?.toString(16), info.usbProductId?.toString(16));
-    try {
-      await this.port.open({baudRate:115200, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none'});
-    } catch (e) {
-      console.error('[monome] open failed:', e);
-      throw new Error(`Failed to open serial port: ${e.message}. Close any other app using the device and try again.`);
+    // Older monome grids default to 9600 baud
+    const baudRates = [9600, 115200];
+    let opened = false;
+    for (const baud of baudRates) {
+      try {
+        await this.port.open({baudRate: baud, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none'});
+        console.log('[monome] opened at', baud, 'baud');
+        opened = true;
+        break;
+      } catch(e) {
+        console.log('[monome] failed at', baud, ':', e.message);
+      }
     }
+    if (!opened) throw new Error('Could not open serial port at any baud rate');
     // Some FTDI devices need DTR/RTS explicitly set
     try { await this.port.setSignals({dataTerminalReady: true, requestToSend: true}); } catch(e) { console.log('[monome] setSignals not supported'); }
     // Drain any startup data
