@@ -18,21 +18,48 @@ export class MlrCore {
       tracks:Array.from({length:tracks},(_,i)=>({clipIndex:i, muted:false, speed:1, group:i})),
       patterns:Array.from({length:PATTERN_COUNT},()=>makePattern())
     };
+    // Track last active slice per track for toggle-stop
+    this._activeSlices = Array.from({length:tracks}, () => -1);
+    this._stopping = false; // re-entrancy guard
   }
   setBpm(bpm){ this.clock.setBpm(bpm); }
   setQuantize(on){ this.state.quantize=!!on; this.render(); }
   handleGridKey({x,y,state}, now=0){
     if(y===FUNCTION_ROW){
       if(state && x<3) this.state.view=['CUT','REC','TIME'][x];
+      if(state && x===3) this.stopAll(now);
       if(state && x>=8 && x<=11) this.togglePatternPlayback(x-8, now);
       if(state && x>=12 && x<=15) this.togglePatternRecord(x-12, now);
       this.render();
       return;
     }
     if(!state || y<0 || y>=this.state.tracks.length) return;
-    const event={track:y, slice:sliceForPad(x)};
+    const slice = sliceForPad(x);
+    // Toggle: if this track is already playing this exact slice, stop it
+    if(this._activeSlices[y] === slice){
+      if(this._stopping) return; // prevent re-entrant stop
+      this._stopping = true;
+      this.stopTrack(y);
+      this._activeSlices[y] = -1;
+      this._stopping = false;
+      this.render();
+      return;
+    }
+    const event={track:y, slice};
     this.recordPatternEvent(event, now);
     if(this.state.quantize) this.state.queued.push(event); else this.exec(event);
+    this._activeSlices[y] = slice;
+  }
+  stopAll(now=0){
+    for(let i=0;i<this.state.tracks.length;i++) this.stopTrack(i);
+    this._activeSlices.fill(-1);
+  }
+  stopTrack(trackIndex){
+    this.audio?.stopTrack?.(trackIndex);
+    this._activeSlices[trackIndex] = -1;
+    // Remove any queued events for this track so stop is immediate
+    this.state.queued = this.state.queued.filter(e => e.track !== trackIndex);
+    this.render();
   }
   tick(now){
     if(this.state.quantize && this.clock.shouldTick(now)){
@@ -120,6 +147,9 @@ export class MlrCore {
     f[FUNCTION_ROW][0]=this.state.view==='CUT'?12:3;
     f[FUNCTION_ROW][1]=this.state.view==='REC'?12:3;
     f[FUNCTION_ROW][2]=this.state.view==='TIME'?12:3;
+    // STOP indicator: lit when any track is active
+    const anyPlaying = this._activeSlices.some(s => s >= 0);
+    f[FUNCTION_ROW][3] = anyPlaying ? 12 : 2;
     this.state.patterns.forEach((pattern,i)=>{
       f[FUNCTION_ROW][8+i]=pattern.playing?12:(pattern.events.length?4:1);
       f[FUNCTION_ROW][12+i]=pattern.recording?15:3;
