@@ -7,6 +7,24 @@ import {UI, setPill} from './ui.js';
 const audio = new AudioEngine(7);
 const ui = new UI();
 let monome = null;
+
+async function loadFilesIntoEngine(files, trackIndex){
+  const loaded = await audio.loadFiles(files);
+  if(loaded.length && trackIndex != null){
+    // Assign the first loaded clip to the target track
+    audio.tracks[trackIndex].clipIndex = audio.clips.length - loaded.length;
+  }
+  ui.setClipNames(audio.clips);
+  setPill('audioStatus', `${loaded.length} clip(s) loaded`, 'ok');
+}
+
+ui.onDropFiles = (files, trackIndex) => loadFilesIntoEngine(files, trackIndex);
+ui.onFilePick = (trackIndex) => {
+  const picker = document.getElementById('filePicker');
+  picker.onchange = async e => { await loadFilesIntoEngine(e.target.files, trackIndex); picker.onchange = null; };
+  picker.click();
+};
+
 const core = new MlrCore({audio, onRender: async (frame, state) => { ui.render(frame); ui.renderPatterns(state.patterns); await monome?.draw(frame); }});
 const midi = new MidiManager({
   onClock: () => core.tick(audio.context?.currentTime ?? performance.now()/1000),
@@ -18,7 +36,7 @@ const midi = new MidiManager({
 ui.onPad(e => core.handleGridKey(e, now()));
 
 document.getElementById('startAudio').onclick = async () => { await audio.start(); setPill('audioStatus','audio ready','ok'); };
-document.getElementById('filePicker').onchange = async e => { const loaded = await audio.loadFiles(e.target.files); ui.setClipNames(audio.clips); setPill('audioStatus',`${loaded.length} clip(s) loaded`,'ok'); };
+document.getElementById('filePicker').onchange = async e => { await loadFilesIntoEngine(e.target.files, null); };
 document.getElementById('bpm').oninput = e => core.setBpm(e.target.value);
 document.getElementById('quantize').onchange = e => core.setQuantize(e.target.checked);
 document.getElementById('connectMonome').onclick = async () => {

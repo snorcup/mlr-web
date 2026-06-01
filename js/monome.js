@@ -3,16 +3,48 @@ const PACKET_LENGTHS = new Map([[0x00,3],[0x01,33],[0x03,3],[0x20,3],[0x21,3],[0
 export class MonomeSerial {
   constructor({onKey=()=>{}, onStatus=()=>{}, rows=8, cols=16} = {}){
     this.rows=rows; this.cols=cols;
-    this.port = null; this.reader = null; this.writer = null; this.onKey = onKey; this.onStatus = onStatus; this.frame = Array.from({length:rows},()=>Array(cols).fill(0)); this.reading = false;
+    this.port = null; this.reader = null; this.writer = null; this.onKey = onKey; this.onStatus = onStatus; this.frame = Array.from({length:rows},()=>Array(cols).fill(0)); this.reading = false; this.autoGranted = false;
   }
   get supported(){ return 'serial' in navigator; }
   async connect(){
     if (!this.supported) throw new Error('Web Serial API is not available. Use Chrome/Edge on localhost or HTTPS.');
-    const filters = [{ usbVendorId: 0x0403 }]; // FTDI devices used by monome classic
-    this.port = await navigator.serial.requestPort({filters});
+    // Try ports user already granted permission for — avoids the picker entirely on reconnect
+    const granted = await navigator.serial.getPorts();
+    const ftdi = granted.filter(p => p.getInfo()?.usbVendorId === 0x0403);
+    if (ftdi.length === 1) {
+      this.port = ftdi[0];
+      this.autoGranted = true;
+    } else if (granted.length === 1) {
+      this.port = granted[0];
+      this.autoGranted = true;
+    } else {
+      // Show filter hints for monome (FTDI) and generic serial
+      try {
+        const filters = [
+          { usbVendorId: 0x0403 }, // FTDI — monome classic
+          { usbVendorId: 0x16c0 }, // Teensy / common USB serial
+          { usbVendorId: 0x0483 }, // STM32 serial
+          { usbVendorId: 0x1a86 }, // Qineng CH340
+        ];
+        this.port = await navigator.serial.requestPort({filters});
+      } catch (e) {
+        if (e?.message?.includes('No port selected')) {
+          // Filters may be blocking all ports; retry without filters
+          try {
+            this.port = await navigator.serial.requestPort();
+          } catch (e2) {
+            if (e2?.message?.includes('No port selected')) throw new Error('Serial port picker was cancelled.');
+            throw e2;
+          }
+        } else {
+          throw e;
+        }
+      }
+    }
+    if (!this.port) throw new Error('No serial port was selected.');
     await this.port.open({baudRate:115200});
     this.writer = this.port.writable.getWriter();
-    this.onStatus('connected');
+    this.onStatus('connected' + (this.autoGranted ? ' (auto)' : ''));
     await this.clear();
     await this.send([0x00]); // system query
     this.readLoop();

@@ -9,7 +9,17 @@ export class UI {
   }
   makeTracks(){
     this.tracks.innerHTML='';
-    for(let i=0;i<7;i++){ const d=document.createElement('div'); d.className='track'; d.innerHTML=`<strong>${i+1}</strong><span class="muted" id="clip-${i}">drop audio</span><div class="track-meter"><span id="meter-${i}"></span></div>`; this.tracks.appendChild(d); }
+    for(let i=0;i<7;i++){
+      const d=document.createElement('div');
+      d.className='track';
+      d.dataset.track=i;
+      d.innerHTML=`<strong>${i+1}</strong><span class="muted" id="clip-${i}">drop audio or click to pick</span><div class="track-meter"><span id="meter-${i}"></span></div>`;
+      d.addEventListener('dragover', e=>{ e.preventDefault(); d.classList.add('drop-hover'); });
+      d.addEventListener('dragleave', ()=>d.classList.remove('drop-hover'));
+      d.addEventListener('drop', e=>{ e.preventDefault(); d.classList.remove('drop-hover'); if(this.onDropFiles) this.onDropFiles(e.dataTransfer.files, i); });
+      d.addEventListener('click', e=>{ if(e.target.tagName!=='BUTTON') this.onFilePick?.(i); });
+      this.tracks.appendChild(d);
+    }
   }
   onPad(fn){
     this.grid.addEventListener('pointerdown', e=>{ const p=e.target.closest('.pad'); if(p) fn({x:+p.dataset.x,y:+p.dataset.y,state:true}); });

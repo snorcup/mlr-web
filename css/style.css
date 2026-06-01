@@ -71,7 +71,8 @@ input[type=number]{width:84px;background:#0c0e13;color:var(--text);border:1px so
 .pad.dim{background:#60743b}
 .pad.fn{border-color:#6b7280}
 .hint,.muted{color:var(--muted)}
-.track{display:grid;grid-template-columns:48px 1fr 76px;gap:10px;align-items:center;padding:10px;border-radius:12px;background:var(--panel2);margin-bottom:8px}
+.track{display:grid;grid-template-columns:48px 1fr 76px;gap:10px;align-items:center;padding:10px;border-radius:12px;background:var(--panel2);margin-bottom:8px;cursor:pointer;border:1px solid transparent;transition:border-color .15s,background .15s}
+.track.drop-hover{border-color:var(--accent);background:#1b2230}
 .track-meter{height:8px;background:#0b0e13;border-radius:999px;overflow:hidden}
 .track-meter span{display:block;height:100%;width:0;background:var(--accent)}
 .docs-card{margin-top:18px;padding:22px}
