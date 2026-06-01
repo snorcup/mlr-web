@@ -32,15 +32,29 @@ export class MonomeSerial {
     const info = this.port.getInfo();
     console.log('[monome] opening port:', info.usbVendorId?.toString(16), info.usbProductId?.toString(16));
     try {
-      await this.port.open({baudRate:115200, dataBits: 8, stopBits: 1, parity: 'none'});
+      await this.port.open({baudRate:115200, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none'});
     } catch (e) {
       console.error('[monome] open failed:', e);
       throw new Error(`Failed to open serial port: ${e.message}. Close any other app using the device and try again.`);
     }
+    // Some FTDI devices need DTR/RTS explicitly set
+    try { await this.port.setSignals({dataTerminalReady: true, requestToSend: true}); } catch(e) { console.log('[monome] setSignals not supported'); }
+    // Drain any startup data
+    await new Promise(r => setTimeout(r, 200));
+    try {
+      const drain = this.port.readable.getReader();
+      while(true) {
+        const {done, value} = await Promise.race([drain.read(), new Promise(r => setTimeout(r, 100, {done:true}))]);
+        if(done || !value) break;
+        console.log('[monome] startup [' + value.length + ']:', [...value].map(b=>b.toString(16).padStart(2,'0')).join(' '));
+      }
+      drain.releaseLock();
+    } catch(e) {}
     this.writer = this.port.writable.getWriter();
     this.onStatus('connected' + (this.autoGranted ? ' (auto)' : ''));
-    await this.clear();
-    await this.send([0x00]); // system query
+    // Send system query and await response before starting read loop
+    await this.send([0x00]);
+    console.log('[monome] sent system query');
     this.readLoop();
   }
   async disconnect(){
@@ -66,20 +80,18 @@ export class MonomeSerial {
     }
   }
   async readLoop(){
-    this.reading = true; this.reader = this.port.readable.getReader(); let buf=[]; let bytesReceived=0;
+    this.reading = true; this.reader = this.port.readable.getReader(); let buf=[]; let bytesReceived=0; let readCount=0;
     try{
       while(this.reading){
         const {value,done}=await this.reader.read(); if(done) break; if(!value) continue;
         bytesReceived += value.length;
+        readCount++;
         const hex = [...value].map(b=>b.toString(16).padStart(2,'0')).join(' ');
-        console.log('[monome] raw [' + value.length + ']: ' + hex);
+        console.log('[monome] #' + readCount + ' [' + value.length + ']: ' + hex);
         for(const byte of value){ buf.push(byte); buf=this.parse(buf); }
-        if(bytesReceived > 1024){
-          console.log('[monome] total bytes received:', bytesReceived);
-          bytesReceived = 0;
-        }
       }
     } catch(err){ this.onStatus(`error: ${err.message}`); }
+    console.log('[monome] readLoop ended, total reads:', readCount, 'bytes:', bytesReceived);
   }
   parse(buf){
     while(buf.length){
