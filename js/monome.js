@@ -10,39 +10,33 @@ export class MonomeSerial {
     if (!this.supported) throw new Error('Web Serial API is not available. Use Chrome/Edge on localhost or HTTPS.');
     // Try ports user already granted permission for — avoids the picker entirely on reconnect
     const granted = await navigator.serial.getPorts();
-    const ftdi = granted.filter(p => p.getInfo()?.usbVendorId === 0x0403);
-    if (ftdi.length === 1) {
-      this.port = ftdi[0];
+    if (granted.length === 1) {
+      this.port = granted[0];
       this.autoGranted = true;
-    } else if (granted.length === 1) {
+    } else if (granted.length > 1) {
+      // Multiple previously granted — try each one
       this.port = granted[0];
       this.autoGranted = true;
     } else {
-      // Show filter hints for monome (FTDI) and generic serial
+      // No previously granted ports — show picker without filters (most reliable)
       try {
-        const filters = [
-          { usbVendorId: 0x0403 }, // FTDI — monome classic
-          { usbVendorId: 0x16c0 }, // Teensy / common USB serial
-          { usbVendorId: 0x0483 }, // STM32 serial
-          { usbVendorId: 0x1a86 }, // Qineng CH340
-        ];
-        this.port = await navigator.serial.requestPort({filters});
+        this.port = await navigator.serial.requestPort();
       } catch (e) {
-        if (e?.message?.includes('No port selected')) {
-          // Filters may be blocking all ports; retry without filters
-          try {
-            this.port = await navigator.serial.requestPort();
-          } catch (e2) {
-            if (e2?.message?.includes('No port selected')) throw new Error('Serial port picker was cancelled.');
-            throw e2;
-          }
-        } else {
-          throw e;
+        if (e?.name === 'NotFoundError' || e?.message?.includes('No port selected')) {
+          throw new Error('Serial port picker was cancelled.');
         }
+        throw e;
       }
     }
     if (!this.port) throw new Error('No serial port was selected.');
-    await this.port.open({baudRate:115200});
+    const info = this.port.getInfo();
+    console.log('[monome] opening port:', info.usbVendorId?.toString(16), info.usbProductId?.toString(16));
+    try {
+      await this.port.open({baudRate:115200, dataBits: 8, stopBits: 1, parity: 'none'});
+    } catch (e) {
+      console.error('[monome] open failed:', e);
+      throw new Error(`Failed to open serial port: ${e.message}. Close any other app using the device and try again.`);
+    }
     this.writer = this.port.writable.getWriter();
     this.onStatus('connected' + (this.autoGranted ? ' (auto)' : ''));
     await this.clear();
@@ -72,11 +66,18 @@ export class MonomeSerial {
     }
   }
   async readLoop(){
-    this.reading = true; this.reader = this.port.readable.getReader(); let buf=[];
+    this.reading = true; this.reader = this.port.readable.getReader(); let buf=[]; let bytesReceived=0;
     try{
       while(this.reading){
         const {value,done}=await this.reader.read(); if(done) break; if(!value) continue;
+        bytesReceived += value.length;
+        const hex = [...value].map(b=>b.toString(16).padStart(2,'0')).join(' ');
+        console.log('[monome] raw [' + value.length + ']: ' + hex);
         for(const byte of value){ buf.push(byte); buf=this.parse(buf); }
+        if(bytesReceived > 1024){
+          console.log('[monome] total bytes received:', bytesReceived);
+          bytesReceived = 0;
+        }
       }
     } catch(err){ this.onStatus(`error: ${err.message}`); }
   }

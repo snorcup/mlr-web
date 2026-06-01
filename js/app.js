@@ -40,7 +40,7 @@ document.getElementById('filePicker').onchange = async e => { await loadFilesInt
 document.getElementById('bpm').oninput = e => core.setBpm(e.target.value);
 document.getElementById('quantize').onchange = e => core.setQuantize(e.target.checked);
 document.getElementById('connectMonome').onclick = async () => {
-  try{ monome = new MonomeSerial({onKey:e=>core.handleGridKey(e, now()), onStatus:s=>setPill('monomeStatus',s,s==='connected'?'ok':'warn')}); await monome.connect(); }
+  try{ monome = new MonomeSerial({onKey:e=>{console.log('[monome] key:', e.x, e.y, e.state?'down':'up'); core.handleGridKey(e, now());}, onStatus:s=>setPill('monomeStatus',s,s==='connected'||s.startsWith('connected')?'ok':'warn')}); await monome.connect(); }
   catch(err){ setPill('monomeStatus',err.message,'err'); }
 };
 document.getElementById('connectMidi').onclick = async () => { try{ await midi.enable(); } catch(err){ setPill('midiStatus',err.message,'err'); } };
