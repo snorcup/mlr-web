@@ -35,9 +35,16 @@ export class MlrCore {
     }
     if(!state || y<0 || y>=this.state.tracks.length) return;
     const slice = sliceForPad(x);
-    // Toggle: if this track is already playing this exact slice, stop it
+
+    // TIME mode: set loop start/end per track
+    if(this.state.view === 'TIME'){
+      this.handleTimeMode(y, slice);
+      return;
+    }
+
+    // CUT / REC mode: trigger/stop toggle
     if(this._activeSlices[y] === slice){
-      if(this._stopping) return; // prevent re-entrant stop
+      if(this._stopping) return;
       this._stopping = true;
       this.stopTrack(y);
       this._activeSlices[y] = -1;
@@ -49,6 +56,30 @@ export class MlrCore {
     this.recordPatternEvent(event, now);
     if(this.state.quantize) this.state.queued.push(event); else this.exec(event);
     this._activeSlices[y] = slice;
+  }
+
+  handleTimeMode(trackIndex, slice){
+    const track = this.audio?.tracks?.[trackIndex];
+    if(!track) return;
+    if(track.loopStart === 0 && track.loopEnd === null){
+      // First press: set loop start
+      const clip = this.audio?.clips?.[track.clipIndex];
+      if(!clip) return;
+      track.loopStart = (slice / 16) * clip.duration;
+      track.loopEnd = clip.duration; // default end = full clip
+    } else {
+      // Second press: set loop end, then reset
+      const clip = this.audio?.clips?.[track.clipIndex];
+      if(!clip) return;
+      const endPos = (slice / 16) * clip.duration;
+      if(endPos > track.loopStart + 0.01){
+        track.loopEnd = endPos;
+      }
+      // Reset so next press starts fresh
+      track.loopStart = 0;
+      track.loopEnd = null;
+    }
+    this.render();
   }
   stopAll(now=0){
     for(let i=0;i<this.state.tracks.length;i++) this.stopTrack(i);
@@ -140,9 +171,30 @@ export class MlrCore {
   }
   framebuffer(){
     const f=Array.from({length:GRID_ROWS},()=>Array(GRID_COLS).fill(0));
-    for(let y=0;y<this.state.tracks.length;y++){
-      const pos=this.audio?.positionSlice(y) ?? -1;
-      if(pos>=0 && pos<GRID_COLS) f[y][pos]=15;
+    if(this.state.view === 'TIME'){
+      // TIME mode: show loop start (bright) and loop end (dim) per track
+      for(let y=0;y<this.state.tracks.length;y++){
+        const track = this.audio?.tracks?.[y];
+        const clip = track ? this.audio?.ensureClip?.(track) : null;
+        if(track && clip){
+          if(track.loopEnd !== null){
+            // Loop region active: show start and end
+            const startCol = Math.floor((track.loopStart / clip.duration) * 16);
+            const endCol = Math.floor((track.loopEnd / clip.duration) * 16);
+            for(let x=startCol; x<=endCol && x<16; x++) f[y][x] = (x===startCol) ? 12 : 4;
+          } else {
+            // First press made, waiting for end: show start
+            const startCol = Math.floor((track.loopStart / clip.duration) * 16);
+            f[y][startCol] = 12;
+          }
+        }
+      }
+    } else {
+      // CUT / REC mode: show playhead
+      for(let y=0;y<this.state.tracks.length;y++){
+        const pos=this.audio?.positionSlice(y) ?? -1;
+        if(pos>=0 && pos<GRID_COLS) f[y][pos]=15;
+      }
     }
     f[FUNCTION_ROW][0]=this.state.view==='CUT'?12:3;
     f[FUNCTION_ROW][1]=this.state.view==='REC'?12:3;

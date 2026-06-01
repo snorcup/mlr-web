@@ -28,8 +28,14 @@ export class AudioEngine {
     const gain = new GainNode(this.context, {gain:track.volume});
     const sliceOffset = (Math.max(0,Math.min(15,slice)) / 16) * clip.duration;
     source.loop = track.loop;
-    source.loopStart = track.loop ? sliceOffset : 0;
-    source.loopEnd = track.loop ? clip.duration : clip.duration;
+    if(track.loop){
+      // Use custom loop region if set, otherwise loop from slice offset to end
+      source.loopStart = (track.loopEnd !== null) ? track.loopStart : sliceOffset;
+      source.loopEnd = (track.loopEnd !== null) ? track.loopEnd : clip.duration;
+    } else {
+      source.loopStart = 0;
+      source.loopEnd = clip.duration;
+    }
     source.connect(gain).connect(this.master);
     source.start(0, sliceOffset);
     track.source=source; track.gain=gain; track.playing=true; track.startedAt=this.context.currentTime; track.offset=sliceOffset;
@@ -43,7 +49,11 @@ export class AudioEngine {
   positionSlice(trackIndex){
     const track=this.tracks[trackIndex]; const clip=this.ensureClip(track); if(!clip || !track.playing) return -1;
     const elapsed=(this.context.currentTime-track.startedAt)*Math.abs(track.rate);
-    const pos=(track.offset+elapsed)%clip.duration;
+    // If custom loop region is set, position is relative to loop region
+    const loopStart = (track.loopEnd !== null) ? track.loopStart : track.offset;
+    const loopEnd = (track.loopEnd !== null) ? track.loopEnd : clip.duration;
+    const loopLen = loopEnd - loopStart;
+    const pos = loopLen > 0 ? loopStart + (elapsed % loopLen) : loopStart;
     return Math.floor((pos/clip.duration)*16);
   }
 }
