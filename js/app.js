@@ -40,7 +40,7 @@ document.getElementById('filePicker').onchange = async e => { await loadFilesInt
 document.getElementById('bpm').oninput = e => core.setBpm(e.target.value);
 document.getElementById('quantize').onchange = e => core.setQuantize(e.target.checked);
 document.getElementById('connectMonome').onclick = async () => {
-  const keyHandler = e => { console.log('[monome] key:', e.x, e.y, e.state?'down':'up'); core.handleGridKey(e, now()); };
+  const keyHandler = e => { core.handleGridKey(e, now()); };
   const statusHandler = s => setPill('monomeStatus', s, s==='connected'||s.startsWith('connected')?'ok':'warn');
   // Try bridge first (serialosc -> WebSocket bridge on localhost:8089)
   try{

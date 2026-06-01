@@ -16,8 +16,12 @@ export class MonomeBridge {
     this.connected = false;
     this.frame = Array.from({length:rows}, ()=>Array(cols).fill(0));
     this.retryTimer = null;
+    this._drawThrottle = 0;      // timestamp of last draw
+    this._drawInterval = 33;     // max ~30fps for LED updates
+    this._pendingDraw = null;    // queued draw frame
+    this._drawBusy = false;
   }
-  get supported(){ return true; /* WebSocket always available */ }
+  get supported(){ return true; /* WebSocket always always available */ }
 
   async connect(){
     return new Promise((resolve, reject) => {
@@ -47,7 +51,7 @@ export class MonomeBridge {
       ws.onmessage = (evt) => {
         let msg;
         try { msg = JSON.parse(evt.data); } catch { return; }
-        console.log('[monome] bridge <-', msg.type, msg);
+        console.log('[monome] bridge <-', msg.type, JSON.stringify(msg));
         switch(msg.type){
           case 'device':
             this._devicePort = msg.port;
@@ -59,8 +63,8 @@ export class MonomeBridge {
             if(msg.msg.startsWith('connected')){
               this.connected = true;
               this.onStatus('connected: ' + this._deviceName);
-              this._pushFrame();
-              resolve();
+              // Send initial frame (batched)
+              this._pushFrame().then(() => resolve());
             }
             break;
           case 'key':
@@ -93,7 +97,7 @@ export class MonomeBridge {
   _send(obj){ if(this.ws && this.ws.readyState === 1) this.ws.send(JSON.stringify(obj)); }
 
   async send(bytes){ /* legacy compat — not used with bridge */ }
-  async clear(){ this.frame.forEach(r=>r.fill(0)); this._send({type:'led_all', s:0}); this._pushFrame(); }
+  async clear(){ this.frame.forEach(r=>r.fill(0)); this._send({type:'led_all', s:0}); }
   async all(on){ this.frame.forEach(r=>r.fill(on?15:0)); this._send({type:'led_all', s:on?15:0}); }
 
   async ledSet(x,y,on){
@@ -112,28 +116,60 @@ export class MonomeBridge {
   async intensity(level){ /* global intensity — not implemented via bridge */ }
 
   async draw(frame){
-    // Use OSC led/map for bulk updates — convert framebuffer to 8 rows of 8-bit values
-    // For 16-col grid, we need 8 rows, each is 16 bits (2 bytes)
-    // monome /led/level/map expects: x_offset y_offset row0 row1 ... row7
-    // where each row is 8-bit. For 16-wide we need two maps or use individual set calls.
-    // For efficiency use level/set for changed cells only.
+    // Throttle: skip if we drew recently, schedule a deferred draw instead
+    const now = performance.now();
+    if(now - this._drawThrottle < this._drawInterval){
+      // Queue latest frame — only keep the most recent
+      this._pendingDraw = frame;
+      if(!this._drawBusy){
+        this._drawBusy = true;
+        setTimeout(() => {
+          this._drawBusy = false;
+          if(this._pendingDraw){
+            const f = this._pendingDraw;
+            this._pendingDraw = null;
+            this._doDraw(f);
+          }
+        }, this._drawInterval - (now - this._drawThrottle));
+      }
+      return;
+    }
+    this._pendingDraw = null;
+    this._doDraw(frame);
+  }
+
+  _doDraw(frame){
+    this._drawThrottle = performance.now();
+    // Batch all changed cells into a single message to avoid WS flood
+    const changes = [];
     for(let y=0;y<this.rows;y++){
       for(let x=0;x<this.cols;x++){
         const next = Math.max(0,Math.min(15,frame[y]?.[x] ?? 0));
         if(next !== this.frame[y][x]){
           this.frame[y][x] = next;
-          this._send({type:'led_level_set', x, y, level:next});
+          changes.push({x, y, level:next});
         }
+      }
+    }
+    if(changes.length > 0){
+      // Send individual set messages but only for actual changes
+      for(const c of changes){
+        this._send({type:'led_level_set', x:c.x, y:c.y, level:c.level});
       }
     }
   }
 
-  _pushFrame(){
+  async _pushFrame(){
+    // Batch initial frame into a single message
+    const changes = [];
     for(let y=0;y<this.rows;y++){
       for(let x=0;x<this.cols;x++){
         const v = this.frame[y][x];
-        if(v > 0) this._send({type:'led_level_set', x, y, level:v});
+        if(v > 0) changes.push({x, y, level:v});
       }
+    }
+    for(const c of changes){
+      this._send({type:'led_level_set', x:c.x, y:c.y, level:c.level});
     }
   }
 }
