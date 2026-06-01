@@ -1,0 +1,15 @@
+[Unit]
+Description=serialosc WebSocket-to-OSC bridge for monome grid
+After=network.target serialosc.service
+Wants=serialosc.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/node /opt/mlr-web/scripts/serialosc-ws-bridge.js
+Restart=on-failure
+RestartSec=5
+Environment=SERIALOSC_WS_PORT=8089
+Environment=SERIALOSC_UDP_PORT=12002
+
+[Install]
+WantedBy=multi-user.target

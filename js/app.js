@@ -1,5 +1,5 @@
 import {AudioEngine} from './audio-engine.js';
-import {MonomeSerial} from './monome.js';
+import {MonomeSerial, MonomeBridge} from './monome.js';
 import {MidiManager} from './midi.js';
 import {MlrCore} from './mlr-core.js';
 import {UI, setPill} from './ui.js';
@@ -40,8 +40,23 @@ document.getElementById('filePicker').onchange = async e => { await loadFilesInt
 document.getElementById('bpm').oninput = e => core.setBpm(e.target.value);
 document.getElementById('quantize').onchange = e => core.setQuantize(e.target.checked);
 document.getElementById('connectMonome').onclick = async () => {
-  try{ monome = new MonomeSerial({onKey:e=>{console.log('[monome] key:', e.x, e.y, e.state?'down':'up'); core.handleGridKey(e, now());}, onStatus:s=>setPill('monomeStatus',s,s==='connected'||s.startsWith('connected')?'ok':'warn')}); await monome.connect(); }
-  catch(err){ setPill('monomeStatus',err.message,'err'); }
+  const keyHandler = e => { console.log('[monome] key:', e.x, e.y, e.state?'down':'up'); core.handleGridKey(e, now()); };
+  const statusHandler = s => setPill('monomeStatus', s, s==='connected'||s.startsWith('connected')?'ok':'warn');
+  // Try bridge first (serialosc -> WebSocket bridge on localhost:8089)
+  try{
+    monome = new MonomeBridge({onKey:keyHandler, onStatus:statusHandler});
+    await monome.connect();
+    return;
+  }catch(err){
+    console.log('[monome] bridge failed:', err.message);
+  }
+  // Fall back to Web Serial (monomes that speak binary serial protocol directly)
+  try{
+    monome = new MonomeSerial({onKey:keyHandler, onStatus:statusHandler});
+    await monome.connect();
+  }catch(err){
+    setPill('monomeStatus', err.message, 'err');
+  }
 };
 document.getElementById('connectMidi').onclick = async () => { try{ await midi.enable(); } catch(err){ setPill('midiStatus',err.message,'err'); } };
 

@@ -1,0 +1,12 @@
+[Unit]
+Description=SerialOSC bridge for monome grid
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/serialosc
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
