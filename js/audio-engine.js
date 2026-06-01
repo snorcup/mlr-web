@@ -2,7 +2,7 @@ export class AudioEngine {
   constructor(trackCount=7){
     this.context = null; this.master = null; this.clips = []; this.tracks = Array.from({length:trackCount}, (_,i)=>this.makeTrack(i));
   }
-  makeTrack(index){ return {index, clipIndex:index, source:null, gain:null, playing:false, startedAt:0, offset:0, rate:1, loop:false, loopStart:0, loopEnd:null, volume:0.9}; }
+  makeTrack(index){ return {index, clipIndex:index, source:null, gain:null, playing:false, startedAt:0, offset:0, rate:1, loop:true, loopStart:0, loopEnd:null, volume:0.9}; }
   async start(){
     this.context ??= new AudioContext({latencyHint:'interactive'});
     this.master ??= new GainNode(this.context, {gain:0.95});
@@ -27,7 +27,9 @@ export class AudioEngine {
     const source = new AudioBufferSourceNode(this.context, {buffer:clip.buffer, playbackRate:track.rate});
     const gain = new GainNode(this.context, {gain:track.volume});
     const sliceOffset = (Math.max(0,Math.min(15,slice)) / 16) * clip.duration;
-    source.loop = track.loop; source.loopStart = track.loopStart; source.loopEnd = track.loopEnd ?? clip.duration;
+    source.loop = track.loop;
+    source.loopStart = track.loop ? sliceOffset : 0;
+    source.loopEnd = track.loop ? clip.duration : clip.duration;
     source.connect(gain).connect(this.master);
     source.start(0, sliceOffset);
     track.source=source; track.gain=gain; track.playing=true; track.startedAt=this.context.currentTime; track.offset=sliceOffset;
