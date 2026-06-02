@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MLR Web</title>
-  <link rel="stylesheet" href="css/style.css?v=fnref-1" />
+  <link rel="stylesheet" href="css/style.css?v=track-modes-1" />
 </head>
 <body>
   <main class="app-shell">
@@ -37,7 +37,7 @@
         <div class="pattern-slot"><strong>P3</strong><button data-pattern-action="record" data-pattern-slot="2">Rec</button><button data-pattern-action="play" data-pattern-slot="2" disabled>Play</button><span id="pattern-2-status" class="muted">empty</span></div>
         <div class="pattern-slot"><strong>P4</strong><button data-pattern-action="record" data-pattern-slot="3">Rec</button><button data-pattern-action="play" data-pattern-slot="3" disabled>Play</button><span id="pattern-3-status" class="muted">empty</span></div>
       </div>
-      <p class="hint">Record captures slice hits with timing. Play loops the captured gesture. On the monome bottom row: columns 9–12 play P1–P4; columns 13–16 record P1–P4.</p>
+      <p class="hint">Record captures slice hits with timing. Play loops the captured gesture. On the monome bottom row: columns 9–12 play P1–P4; columns 13–16 record P1–P4. Track modes (columns 5–8) control per-track behavior.</p>
     </section>
 
     <section class="workspace">
@@ -119,16 +119,21 @@
           <p>Press a <strong>REC</strong> button (P1–P4), perform slice hits, press again to stop. Press <strong>PLAY</strong> to loop the captured gesture. Patterns record with precise timing and loop independently.</p>
         </div>
         <div class="docs-block">
-          <h3>5. Stop all</h3>
+          <h3>5. Per-track modes</h3>
+          <p>Bottom row columns 5–8 set per-track behavior. Press a <strong>mode button</strong> (CUT, SOLO, MUTE, or ONCE), then tap a track row (1–7) to apply it. The mode button lights up while pending. Press it again to cancel.</p>
+          <p><strong>CUT</strong> — default toggle loop/stop. <strong>SOLO</strong> — mutes all other tracks. <strong>MUTE</strong> — silences the track. <strong>ONCE</strong> — plays through once without looping. Track badges (S, M, 1) show the active mode per track.</p>
+        </div>
+        <div class="docs-block">
+          <h3>6. Stop all</h3>
           <p>Press <strong>STOP ALL</strong> (bottom row, column 4) to cut everything at once. The button lights up when any track is playing.</p>
         </div>
         <div class="docs-block">
-          <h3>6. Connect monome</h3>
+          <h3>7. Connect monome</h3>
           <p>Click <strong>Connect monome USB</strong>. The browser talks to the local serialosc bridge. Requires a Chromium browser over HTTPS or localhost.</p>
         </div>
       </div>
     </section>
   </main>
-  <script type="module" src="js/app.js?v=fnref-1"></script>
+  <script type="module" src="js/app.js?v=track-modes-1"></script>
 </body>
 </html>
