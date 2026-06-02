@@ -13,7 +13,7 @@ export class UI {
       const d=document.createElement('div');
       d.className='track';
       d.dataset.track=i;
-      d.innerHTML=`<strong>${i+1}</strong><span class="muted" id="clip-${i}">drop audio or click to pick</span><div class="track-meter"><span id="meter-${i}"></span></div>`;
+      d.innerHTML=`<strong>${i+1}</strong><span class="track-mode" id="track-mode-${i}"></span><span class="muted" id="clip-${i}">drop audio or click to pick</span><div class="track-meter"><span id="meter-${i}"></span></div>`;
       d.addEventListener('dragover', e=>{ e.preventDefault(); d.classList.add('drop-hover'); });
       d.addEventListener('dragleave', ()=>d.classList.remove('drop-hover'));
       d.addEventListener('drop', e=>{ e.preventDefault(); d.classList.remove('drop-hover'); if(this.onDropFiles) this.onDropFiles(e.dataTransfer.files, i); });

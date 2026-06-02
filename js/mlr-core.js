@@ -6,6 +6,14 @@ const FUNCTION_ROW = GRID_ROWS - 1;
 const PATTERN_COUNT = 4;
 const TIME_EPSILON = 0.000001;
 
+// Per-track mode button positions on the function row
+const MODE_CUT  = 4;  // x=4: CUT (default toggle loop/stop)
+const MODE_SOLO = 5;  // x=5: SOLO (solo this track)
+const MODE_MUTE = 6;  // x=6: MUTE (toggle mute)
+const MODE_ONCE = 7;  // x=7: ONCE (one-shot, no loop)
+
+export const TRACK_MODES = ['CUT','SOLO','MUTE','ONCE'];
+
 export class MlrCore {
   constructor({tracks=7, onRender=()=>{}, audio=null}={}){
     this.audio=audio;
@@ -20,20 +28,46 @@ export class MlrCore {
     };
     // Track last active slice per track for toggle-stop
     this._activeSlices = Array.from({length:tracks}, () => -1);
+    // Per-track mode: one of 'CUT','SOLO','MUTE','ONCE' — which mode button is pending assignment
+    this._pendingMode = null; // null or one of TRACK_MODES
+    this._trackModes = Array.from({length:tracks}, () => 'CUT'); // effective mode per track
     this._stopping = false; // re-entrancy guard
   }
   setBpm(bpm){ this.clock.setBpm(bpm); }
   setQuantize(on){ this.state.quantize=!!on; this.render(); }
   handleGridKey({x,y,state}, now=0){
     if(y===FUNCTION_ROW){
+      // View mode buttons (x=0-2)
       if(state && x<3) this.state.view=['CUT','REC','TIME'][x];
+      // STOP ALL (x=3)
       if(state && x===3) this.stopAll(now);
+      // Pattern playback (x=8-11)
       if(state && x>=8 && x<=11) this.togglePatternPlayback(x-8, now);
+      // Pattern record (x=12-15)
       if(state && x>=12 && x<=15) this.togglePatternRecord(x-12, now);
+      // Per-track mode buttons (x=4-7)
+      if(state && x>=4 && x<=7){
+        const mode = TRACK_MODES[x-4];
+        if(this._pendingMode === mode){
+          // Press same mode button again to cancel
+          this._pendingMode = null;
+        } else {
+          this._pendingMode = mode;
+        }
+      }
       this.render();
       return;
     }
     if(!state || y<0 || y>=this.state.tracks.length) return;
+
+    // If a mode is pending, apply it to this track row and clear pending
+    if(this._pendingMode !== null){
+      this.applyTrackMode(y, this._pendingMode);
+      this._pendingMode = null;
+      this.render();
+      return;
+    }
+
     const slice = sliceForPad(x);
 
     // TIME mode: set loop start/end per track
@@ -42,7 +76,33 @@ export class MlrCore {
       return;
     }
 
-    // CUT / REC mode: trigger/stop toggle
+    // CUT / REC mode: trigger/stop toggle (respecting per-track mode)
+    const trackMode = this._trackModes[y];
+
+    if(trackMode === 'MUTE'){
+      // Muted track: ignore slice presses
+      return;
+    }
+
+    if(trackMode === 'ONCE'){
+      // One-shot mode: always restart from pressed slice, no toggle-stop
+      this.audio?.setOnce?.(y, true);
+      const event={track:y, slice};
+      this.recordPatternEvent(event, now);
+      if(this.state.quantize) this.state.queued.push(event); else this.exec(event);
+      this._activeSlices[y] = slice;
+      return;
+    }
+
+    if(trackMode === 'SOLO'){
+      // Solo this track: mute all others, then trigger
+      this.audio?.setMuted?.(y, false);
+      for(let i=0;i<this.state.tracks.length;i++){
+        if(i!==y) this.audio?.setMuted?.(i, true);
+      }
+    }
+
+    // CUT mode (default): toggle stop on same pad
     if(this._activeSlices[y] === slice){
       if(this._stopping) return;
       this._stopping = true;
@@ -56,6 +116,35 @@ export class MlrCore {
     this.recordPatternEvent(event, now);
     if(this.state.quantize) this.state.queued.push(event); else this.exec(event);
     this._activeSlices[y] = slice;
+  }
+
+  applyTrackMode(trackIndex, mode){
+    this._trackModes[trackIndex] = mode;
+    if(mode === 'MUTE'){
+      this.audio?.setMuted?.(trackIndex, true);
+    } else {
+      // Unmute when switching away from MUTE
+      this.audio?.setMuted?.(trackIndex, false);
+    }
+    if(mode === 'ONCE'){
+      this.audio?.setOnce?.(trackIndex, true);
+    } else {
+      this.audio?.setOnce?.(trackIndex, false);
+    }
+    if(mode === 'SOLO'){
+      // Solo: mute all other tracks
+      for(let i=0;i<this.state.tracks.length;i++){
+        this.audio?.setMuted?.(i, i!==trackIndex);
+      }
+    } else {
+      // Unsolo: unmute all (unless MUTE mode is set on them)
+      for(let i=0;i<this.state.tracks.length;i++){
+        if(this._trackModes[i] !== 'MUTE'){
+          this.audio?.setMuted?.(i, false);
+        }
+      }
+    }
+    this.render();
   }
 
   handleTimeMode(trackIndex, slice){
@@ -196,12 +285,19 @@ export class MlrCore {
         if(pos>=0 && pos<GRID_COLS) f[y][pos]=15;
       }
     }
+    // View mode LEDs
     f[FUNCTION_ROW][0]=this.state.view==='CUT'?12:3;
     f[FUNCTION_ROW][1]=this.state.view==='REC'?12:3;
     f[FUNCTION_ROW][2]=this.state.view==='TIME'?12:3;
     // STOP indicator: lit when any track is active
     const anyPlaying = this._activeSlices.some(s => s >= 0);
     f[FUNCTION_ROW][3] = anyPlaying ? 12 : 2;
+    // Per-track mode buttons (x=4-7): lit when that mode is pending selection
+    f[FUNCTION_ROW][MODE_CUT]  = this._pendingMode === 'CUT'  ? 12 : 3;
+    f[FUNCTION_ROW][MODE_SOLO] = this._pendingMode === 'SOLO' ? 12 : 3;
+    f[FUNCTION_ROW][MODE_MUTE] = this._pendingMode === 'MUTE' ? 12 : 3;
+    f[FUNCTION_ROW][MODE_ONCE] = this._pendingMode === 'ONCE' ? 12 : 3;
+    // Pattern LEDs
     this.state.patterns.forEach((pattern,i)=>{
       f[FUNCTION_ROW][8+i]=pattern.playing?12:(pattern.events.length?4:1);
       f[FUNCTION_ROW][12+i]=pattern.recording?15:3;

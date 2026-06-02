@@ -25,7 +25,13 @@ ui.onFilePick = (trackIndex) => {
   picker.click();
 };
 
-const core = new MlrCore({audio, onRender: async (frame, state) => { ui.render(frame); ui.renderPatterns(state.patterns); updateFnReference(state); await monome?.draw(frame); }});
+const core = new MlrCore({audio, onRender: async (frame, state) => {
+  ui.render(frame);
+  ui.renderPatterns(state.patterns);
+  updateFnReference(state);
+  updateTrackModeLabels();
+  await monome?.draw(frame);
+}});
 const midi = new MidiManager({
   onClock: () => core.tick(audio.context?.currentTime ?? performance.now()/1000),
   onStart: () => setPill('midiStatus','midi clock started','ok'),
@@ -49,10 +55,26 @@ function updateFnReference(state){
     if(recBtn) recBtn.classList.toggle('active', p.recording);
   });
 
-  // Hint text per view
+  // Track mode buttons — lit when that mode is pending assignment
+  const pendingMode = core._pendingMode;
+  document.getElementById('fn-mode-cut').classList.toggle('active', pendingMode === 'CUT');
+  document.getElementById('fn-mode-solo').classList.toggle('active', pendingMode === 'SOLO');
+  document.getElementById('fn-mode-mute').classList.toggle('active', pendingMode === 'MUTE');
+  document.getElementById('fn-mode-once').classList.toggle('active', pendingMode === 'ONCE');
+
+  // Hint text per view / pending mode
   const hint = document.getElementById('fn-hint');
   if(hint){
-    if(state.view === 'CUT') hint.textContent = 'CUT — Tap a track pad to loop from that slice. Tap the same pad again to stop.';
+    if(pendingMode){
+      const modeLabels = {CUT:'CUT', SOLO:'SOLO', MUTE:'MUTE', ONCE:'ONCE'};
+      const modeDescs = {
+        CUT:  'tap a track row to set it to CUT mode (default: tap slice to loop, tap same to stop)',
+        SOLO: 'tap a track row to SOLO it (mutes all other tracks)',
+        MUTE: 'tap a track row to MUTE it (track will not play)',
+        ONCE: 'tap a track row to set ONCE mode (plays through once, no loop)',
+      };
+      hint.textContent = `Mode: ${modeLabels[pendingMode]} selected — ${modeDescs[pendingMode]}. Tap same button to cancel.`;
+    } else if(state.view === 'CUT') hint.textContent = 'CUT — Tap a track pad to loop from that slice. Tap the same pad again to stop.';
     else if(state.view === 'REC') hint.textContent = 'REC — Same as CUT. Press a REC button (P1–P4), perform slice hits, press again to stop recording.';
     else if(state.view === 'TIME') hint.textContent = 'TIME — Press a track pad to set loop start. Press again for loop end. Playback loops within the region.';
   }
@@ -91,8 +113,23 @@ document.querySelectorAll('[data-pattern-action]').forEach(button => {
   });
 });
 
+function updateTrackModeLabels(){
+  const modes = core._trackModes;
+  for(let i=0;i<modes.length;i++){
+    const el = document.getElementById(`track-mode-${i}`);
+    if(el){
+      const m = modes[i];
+      if(m === 'CUT'){ el.textContent = ''; el.className = 'track-mode'; }
+      else if(m === 'SOLO'){ el.textContent = 'S'; el.className = 'track-mode mode-solo'; }
+      else if(m === 'MUTE'){ el.textContent = 'M'; el.className = 'track-mode mode-mute'; }
+      else if(m === 'ONCE'){ el.textContent = '1'; el.className = 'track-mode mode-once'; }
+    }
+  }
+}
+
 function now(){ return audio.context?.currentTime ?? performance.now()/1000; }
 
 function loop(){ if(audio.context) core.tick(audio.context.currentTime); requestAnimationFrame(loop); }
-loop(); core.render();
+loop();
+core.render();
 updateFnReference(core.state);
