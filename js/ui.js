@@ -1,49 +1,147 @@
+// ui.js — DOM adapter for web-mlr
+// 16×8 grid mirroring OG MLR layout
+
 export class UI {
-  constructor(){
-    this.grid=document.getElementById('grid'); this.tracks=document.getElementById('tracks'); this.makeGrid(); this.makeTracks();
+  constructor() {
+    this.grid = document.getElementById('grid');
+    this.tracks = document.getElementById('tracks');
+    this.makeGrid();
+    this.makeTracks();
   }
-  makeGrid(){
-    this.grid.innerHTML='';
-    this.grid.style.setProperty('--grid-cols','16');
-    for(let y=0;y<8;y++) for(let x=0;x<16;x++){ const b=document.createElement('button'); b.className='pad'+(y===7?' fn':''); b.dataset.x=x; b.dataset.y=y; b.ariaLabel=`pad ${x},${y}`; this.grid.appendChild(b); }
+
+  makeGrid() {
+    this.grid.innerHTML = '';
+    this.grid.style.setProperty('--grid-cols', '16');
+    for (let y = 0; y < 8; y++) {
+      for (let x = 0; x < 16; x++) {
+        const b = document.createElement('button');
+        b.className = 'pad' + (y === 0 ? ' nav' : (y === 7 ? ' fn' : ''));
+        b.dataset.x = x;
+        b.dataset.y = y;
+        b.ariaLabel = `pad ${x},${y}`;
+        this.grid.appendChild(b);
+      }
+    }
   }
-  makeTracks(){
-    this.tracks.innerHTML='';
-    for(let i=0;i<7;i++){
-      const d=document.createElement('div');
-      d.className='track';
-      d.dataset.track=i;
-      d.innerHTML=`<strong>${i+1}</strong><span class="track-mode" id="track-mode-${i}"></span><span class="muted" id="clip-${i}">drop audio or click to pick</span><div class="track-meter"><span id="meter-${i}"></span></div>`;
-      d.addEventListener('dragover', e=>{ e.preventDefault(); d.classList.add('drop-hover'); });
-      d.addEventListener('dragleave', ()=>d.classList.remove('drop-hover'));
-      d.addEventListener('drop', e=>{ e.preventDefault(); d.classList.remove('drop-hover'); if(this.onDropFiles) this.onDropFiles(e.dataTransfer.files, i); });
-      d.addEventListener('click', e=>{ if(e.target.tagName!=='BUTTON') this.onFilePick?.(i); });
+
+  makeTracks() {
+    this.tracks.innerHTML = '';
+    for (let i = 0; i < 6; i++) {
+      const d = document.createElement('div');
+      d.className = 'track';
+      d.dataset.track = i;
+      d.innerHTML = `
+        <strong>${i + 1}</strong>
+        <span class="track-mode" id="track-mode-${i}"></span>
+        <span class="muted" id="clip-${i}">drop audio or click to pick</span>
+        <div class="track-meter"><span id="meter-${i}"></span></div>
+      `;
+      d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('drop-hover'); });
+      d.addEventListener('dragleave', () => d.classList.remove('drop-hover'));
+      d.addEventListener('drop', e => {
+        e.preventDefault();
+        d.classList.remove('drop-hover');
+        if (this.onDropFiles) this.onDropFiles(e.dataTransfer.files, i);
+      });
+      d.addEventListener('click', e => {
+        if (e.target.tagName !== 'BUTTON') this.onFilePick?.(i);
+      });
       this.tracks.appendChild(d);
     }
   }
-  onPad(fn){
-    this.grid.addEventListener('pointerdown', e=>{ const p=e.target.closest('.pad'); if(p) fn({x:+p.dataset.x,y:+p.dataset.y,state:true}); });
-    this.grid.addEventListener('pointerup', e=>{ const p=e.target.closest('.pad'); if(p) fn({x:+p.dataset.x,y:+p.dataset.y,state:false}); });
-    this.grid.addEventListener('pointerleave', e=>{ const p=e.target.closest('.pad'); if(p) fn({x:+p.dataset.x,y:+p.dataset.y,state:false}); });
+
+  onPad(fn) {
+    this.grid.addEventListener('pointerdown', e => {
+      const p = e.target.closest('.pad');
+      if (p) fn({ x: +p.dataset.x, y: +p.dataset.y, state: true });
+    });
+    this.grid.addEventListener('pointerup', e => {
+      const p = e.target.closest('.pad');
+      if (p) fn({ x: +p.dataset.x, y: +p.dataset.y, state: false });
+    });
+    this.grid.addEventListener('pointerleave', e => {
+      const p = e.target.closest('.pad');
+      if (p) fn({ x: +p.dataset.x, y: +p.dataset.y, state: false });
+    });
   }
-  render(frame){
-    [...this.grid.children].forEach(el=>{ const x=+el.dataset.x,y=+el.dataset.y,l=frame[y]?.[x] ?? 0; el.classList.toggle('on',l>=12); el.classList.toggle('dim',l>0&&l<12); });
+
+  render(frame) {
+    if (!frame) return;
+    const children = [...this.grid.children];
+    for (const el of children) {
+      const x = +el.dataset.x;
+      const y = +el.dataset.y;
+      const l = frame[y]?.[x] ?? 0;
+      el.classList.toggle('on', l >= 12);
+      el.classList.toggle('dim', l > 0 && l < 12);
+    }
   }
-  renderPatterns(patterns=[]){
-    patterns.forEach((pattern,i)=>{
-      const rec=document.querySelector(`[data-pattern-action="record"][data-pattern-slot="${i}"]`);
-      const play=document.querySelector(`[data-pattern-action="play"][data-pattern-slot="${i}"]`);
-      const status=document.getElementById(`pattern-${i}-status`);
-      rec?.classList.toggle('recording', !!pattern.recording);
-      play?.classList.toggle('playing', !!pattern.playing);
-      play?.toggleAttribute('disabled', !pattern.events.length);
-      if(status){
-        const length = pattern.length ? `${pattern.length.toFixed(2)}s` : 'empty';
-        status.textContent = pattern.recording ? `recording ${pattern.events.length}` : pattern.playing ? `playing ${pattern.events.length} / ${length}` : `${pattern.events.length} event(s) / ${length}`;
+
+  renderPatterns(patterns = []) {
+    patterns.forEach((pattern, i) => {
+      const rec = document.querySelector(`[data-pattern-action="record"][data-pattern-slot="${i}"]`);
+      const play = document.querySelector(`[data-pattern-action="play"][data-pattern-slot="${i}"]`);
+      const status = document.getElementById(`pattern-${i}-status`);
+      if (rec) rec.classList.toggle('recording', !!pattern.recording);
+      if (play) play.classList.toggle('playing', !!pattern.playing);
+      if (play) play.toggleAttribute('disabled', !pattern.count);
+      if (status) {
+        const len = pattern.time?.length ? `${pattern.time.length} events` : 'empty';
+        status.textContent = pattern.recording
+          ? `recording ${pattern.count}`
+          : pattern.playing
+            ? `playing ${pattern.count}`
+            : `${pattern.count} / ${len}`;
       }
     });
   }
-  setClipNames(clips){ clips.slice(0,7).forEach((clip,i)=>{ const el=document.getElementById(`clip-${i}`); if(el) el.textContent=clip.name; }); }
+
+  setClipNames(clips) {
+    clips.slice(0, 6).forEach((clip, i) => {
+      const el = document.getElementById(`clip-${i}`);
+      if (el) el.textContent = clip.name;
+    });
+  }
+
+  // Update nav button states
+  updateNav(state) {
+    if (!state) return;
+    document.getElementById('fn-rec')?.classList.toggle('active', state.view === 1);
+    document.getElementById('fn-cut')?.classList.toggle('active', state.view === 2);
+    document.getElementById('fn-clip')?.classList.toggle('active', state.view === 3);
+    document.getElementById('fn-quantize')?.classList.toggle('active', state.quantize);
+    document.getElementById('fn-alt')?.classList.toggle('active', state.alt);
+
+    // Pattern play/record LEDs
+    (state.patterns || []).forEach((p, i) => {
+      const playBtn = document.getElementById(`fn-p${i + 1}-play`);
+      const recBtn = document.getElementById(`fn-p${i + 1}-rec`);
+      if (playBtn) playBtn.classList.toggle('active', p.playing);
+      if (recBtn) recBtn.classList.toggle('recording', p.recording);
+    });
+  }
+
+  // Update track mode badges
+  updateTrackModes(tracks) {
+    if (!tracks) return;
+    for (let i = 0; i < tracks.length; i++) {
+      const el = document.getElementById(`track-mode-${i}`);
+      if (!el) continue;
+      const t = tracks[i];
+      let label = '';
+      let cls = 'track-mode';
+      if (t.rec) { label = 'R'; cls += ' mode-rec'; }
+      if (t.rev) { label = '←'; cls += ' mode-rev'; }
+      if (t.tempo_map) { label = 'T'; cls += ' mode-tempo'; }
+      el.textContent = label;
+      el.className = cls;
+    }
+  }
 }
 
-export function setPill(id, text, mode=''){ const el=document.getElementById(id); el.textContent=text; el.className=`pill ${mode}`.trim(); }
+export function setPill(id, text, mode = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = text;
+  el.className = `pill ${mode}`.trim();
+}

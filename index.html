@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MLR Web</title>
-  <link rel="stylesheet" href="css/style.css?v=track-modes-1" />
+  <link rel="stylesheet" href="css/style.css?v=og-rewrite-1" />
 </head>
 <body>
   <main class="app-shell">
@@ -25,7 +25,6 @@
       <button id="connectMonome">Connect monome USB</button>
       <button id="connectMidi">Enable MIDI</button>
       <label>BPM <input id="bpm" type="number" min="20" max="300" value="120" /></label>
-      <label><input id="quantize" type="checkbox" checked /> Quantize</label>
       <input id="filePicker" type="file" accept="audio/*" multiple />
     </section>
 
@@ -37,60 +36,52 @@
         <div class="pattern-slot"><strong>P3</strong><button data-pattern-action="record" data-pattern-slot="2">Rec</button><button data-pattern-action="play" data-pattern-slot="2" disabled>Play</button><span id="pattern-2-status" class="muted">empty</span></div>
         <div class="pattern-slot"><strong>P4</strong><button data-pattern-action="record" data-pattern-slot="3">Rec</button><button data-pattern-action="play" data-pattern-slot="3" disabled>Play</button><span id="pattern-3-status" class="muted">empty</span></div>
       </div>
-      <p class="hint">Record captures slice hits with timing. Play loops the captured gesture. On the monome bottom row: columns 9–12 play P1–P4; columns 13–16 record P1–P4. Track modes (columns 5–8) control per-track behavior.</p>
+      <p class="hint">Record captures slice hits with timing. Play loops the captured gesture. On the monome nav row: columns 5–8 play/record P1–P4; columns 9–12 are recalls.</p>
     </section>
 
     <section class="workspace">
       <div>
         <h2>Grid mirror</h2>
-        <div id="grid" class="grid" aria-label="8 by 16 monome grid mirror"></div>
+        <div id="grid" class="grid" aria-label="16 by 8 monome grid mirror"></div>
 
-        <div class="fn-reference" aria-label="Bottom row reference">
-          <h3>Bottom row</h3>
+        <div class="fn-reference" aria-label="Nav row reference">
+          <h3>Nav row (top)</h3>
           <div class="fn-grid">
             <div class="fn-group">
               <span class="fn-label">View</span>
               <div class="fn-buttons">
-                <button class="fn-btn active" id="fn-cut" title="CUT mode: tap to loop, tap again to stop">CUT</button>
-                <button class="fn-btn" id="fn-rec" title="REC mode: same as CUT, use with pattern recording">REC</button>
-                <button class="fn-btn" id="fn-time" title="TIME mode: set loop start/end per track">TIME</button>
+                <button class="fn-btn active" id="fn-rec" title="REC view: record, speed, reverse">REC</button>
+                <button class="fn-btn" id="fn-cut" title="CUT view: slice jumping, two-finger loop">CUT</button>
+                <button class="fn-btn" id="fn-clip" title="CLIP view: select clip per track">CLIP</button>
               </div>
             </div>
             <div class="fn-group">
-              <span class="fn-label">Track mode</span>
+              <span class="fn-label">Patterns</span>
               <div class="fn-buttons">
-                <button class="fn-btn fn-mode-btn" id="fn-mode-cut" title="Press then tap a track row: default toggle loop/stop">CUT</button>
-                <button class="fn-btn fn-mode-btn" id="fn-mode-solo" title="Press then tap a track row: solo this track (mute others)">SOLO</button>
-                <button class="fn-btn fn-mute-btn" id="fn-mode-mute" title="Press then tap a track row: mute this track">MUTE</button>
-                <button class="fn-btn fn-mode-btn" id="fn-mode-once" title="Press then tap a track row: one-shot playback (no loop)">ONCE</button>
+                <button class="fn-btn" id="fn-p1-play" title="Pattern 1 play/stop">P1</button>
+                <button class="fn-btn" id="fn-p2-play" title="Pattern 2 play/stop">P2</button>
+                <button class="fn-btn" id="fn-p3-play" title="Pattern 3 play/stop">P3</button>
+                <button class="fn-btn" id="fn-p4-play" title="Pattern 4 play/stop">P4</button>
               </div>
             </div>
             <div class="fn-group">
-              <span class="fn-label">Stop</span>
+              <span class="fn-label">Recalls</span>
               <div class="fn-buttons">
-                <button class="fn-btn fn-stop" id="fn-stop" title="Stop all playing tracks">STOP&nbsp;ALL</button>
+                <button class="fn-btn" id="fn-r1" title="Recall 1">R1</button>
+                <button class="fn-btn" id="fn-r2" title="Recall 2">R2</button>
+                <button class="fn-btn" id="fn-r3" title="Recall 3">R3</button>
+                <button class="fn-btn" id="fn-r4" title="Recall 4">R4</button>
               </div>
             </div>
             <div class="fn-group">
-              <span class="fn-label">Play</span>
+              <span class="fn-label">Alt / Quant</span>
               <div class="fn-buttons">
-                <button class="fn-btn" id="fn-p1-play" title="Play/stop pattern 1">P1</button>
-                <button class="fn-btn" id="fn-p2-play" title="Play/stop pattern 2">P2</button>
-                <button class="fn-btn" id="fn-p3-play" title="Play/stop pattern 3">P3</button>
-                <button class="fn-btn" id="fn-p4-play" title="Play/stop pattern 4">P4</button>
-              </div>
-            </div>
-            <div class="fn-group">
-              <span class="fn-label">Record</span>
-              <div class="fn-buttons">
-                <button class="fn-btn fn-rec-btn" id="fn-p1-rec" title="Record/stop pattern 1">P1</button>
-                <button class="fn-btn fn-rec-btn" id="fn-p2-rec" title="Record/stop pattern 2">P2</button>
-                <button class="fn-btn fn-rec-btn" id="fn-p3-rec" title="Record/stop pattern 3">P3</button>
-                <button class="fn-btn fn-rec-btn" id="fn-p4-rec" title="Record/stop pattern 4">P4</button>
+                <button class="fn-btn" id="fn-quantize" title="Quantize toggle (hold for TIME view)">Q</button>
+                <button class="fn-btn" id="fn-alt" title="Alt modifier">ALT</button>
               </div>
             </div>
           </div>
-          <p class="fn-hint" id="fn-hint">CUT mode — Tap a track pad to loop from that slice. Tap the same pad again to stop.</p>
+          <p class="fn-hint" id="fn-hint">REC view — Tap a track pad to loop from that slice. Tap the same pad again to stop.</p>
         </div>
       </div>
       <aside>
@@ -107,25 +98,24 @@
           <p>Click <strong>Start audio</strong>, then drag audio files onto track slots or click a track to pick files. Each track plays one clip at a time.</p>
         </div>
         <div class="docs-block">
-          <h3>2. Trigger loops</h3>
-          <p>Tap any pad in rows 1–7. The clip loops from that slice. Tap the <strong>same pad</strong> again to stop that track. Tap a <strong>different pad</strong> on the same track to jump to a new slice.</p>
+          <h3>2. REC view (default)</h3>
+          <p>Tap a track row to set focus. Use columns: <strong>Rec</strong> (arm), <strong>Focus</strong> (select), <strong>Tempo</strong> (map), <strong>Rev</strong> (reverse), <strong>Speed</strong> (x9–x16), <strong>Stop/Start</strong> (x16). Alt+focus toggles tempo map.</p>
         </div>
         <div class="docs-block">
-          <h3>3. View modes</h3>
-          <p><strong>CUT</strong> — default trigger mode. <strong>REC</strong> — same triggers, use with pattern record buttons. <strong>TIME</strong> — press a track pad for loop start, press again for loop end. Playback loops within that region.</p>
+          <h3>3. CUT view</h3>
+          <p>Tap any pad in track rows to jump to that slice. <strong>Two-finger press</strong> sets a loop region (first finger = start, second = end). Alt+press toggles start/stop.</p>
         </div>
         <div class="docs-block">
-          <h3>4. Patterns</h3>
-          <p>Press a <strong>REC</strong> button (P1–P4), perform slice hits, press again to stop. Press <strong>PLAY</strong> to loop the captured gesture. Patterns record with precise timing and loop independently.</p>
+          <h3>4. CLIP view</h3>
+          <p>Select a clip (x=1–7) for each track. Each track can point to any of 16 clips. Clips are independent audio buffers.</p>
         </div>
         <div class="docs-block">
-          <h3>5. Per-track modes</h3>
-          <p>Bottom row columns 5–8 set per-track behavior. Press a <strong>mode button</strong> (CUT, SOLO, MUTE, or ONCE), then tap a track row (1–7) to apply it. The mode button lights up while pending. Press it again to cancel.</p>
-          <p><strong>CUT</strong> — default toggle loop/stop. <strong>SOLO</strong> — mutes all other tracks. <strong>MUTE</strong> — silences the track. <strong>ONCE</strong> — plays through once without looping. Track badges (S, M, 1) show the active mode per track.</p>
+          <h3>5. Patterns</h3>
+          <p>Press a <strong>REC</strong> button (P1–P4), perform slice hits, press again to stop. Press <strong>PLAY</strong> to loop the captured gesture. Alt+pattern button clears.</p>
         </div>
         <div class="docs-block">
-          <h3>6. Stop all</h3>
-          <p>Press <strong>STOP ALL</strong> (bottom row, column 4) to cut everything at once. The button lights up when any track is playing.</p>
+          <h3>6. Nav row</h3>
+          <p>Top row: x=1 REC, x=2 CUT, x=3 CLIP, x=5–8 patterns, x=9–12 recalls, x=15 quantize (hold for TIME), x=16 alt. Alt+x=1 clears buffer.</p>
         </div>
         <div class="docs-block">
           <h3>7. Connect monome</h3>
@@ -134,6 +124,6 @@
       </div>
     </section>
   </main>
-  <script type="module" src="js/app.js?v=track-modes-1"></script>
+  <script type="module" src="js/app.js?v=og-rewrite-1"></script>
 </body>
 </html>
