@@ -13,6 +13,20 @@
 | **Traefik config** | `/opt/traefik/dynamic/config.yaml` |
 | **Auth** | Authentik forward auth (`authentik@file`) |
 
+## Current Feature Set
+
+As of the latest deployment:
+
+- **6 tracks** (faithful to OG MLR v2.2.5), **16 clips**
+- **4 views:** REC (record/speed/reverse), CUT (slice triggering + loop), CLIP (clip management), TIME (tempo/quantize)
+- **4 pattern slots** (record/play/stop on nav row x=4..7)
+- **4 recall slots** (record/play on nav row x=8..11)
+- **Per-track modes:** CUT (toggle loop/stop), SOLO, MUTE, ONCE (one-shot) — assigned via bottom row x=4..7
+- **Quantize** (nav x=14) and **Alt modifier** (nav x=15)
+- **8×16 monome grid** with on-screen mirror for testing
+- **Primary monome connection:** WebSocket → serialosc-ws-bridge → serialosc daemon → USB
+- **Fallback:** Web Serial API direct (9600 baud default for older firmware)
+
 ## Infrastructure Topology
 
 ```
