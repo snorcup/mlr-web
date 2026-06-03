@@ -492,9 +492,10 @@ export class MlrCore {
   }
 
   // ─── CUT view grid handler ───
+  // OG MLR: single press = jump to position. two fingers = set loop on release.
 
   gridkeyCUT(x, y, z, i, now) {
-    const row = y; // use row index for held tracking
+    const row = y;
 
     if (z === 1) {
       this.held[row] = (this.held[row] || 0) + 1;
@@ -508,18 +509,10 @@ export class MlrCore {
         this.focus = i;
       }
 
-      if (this.alt === 1) {
-        // Alt+press = start/stop toggle
-        if (this.tracks[i - 1].play === 1) {
-          this.event({ t: eSTOP, i });
-        } else {
-          this.event({ t: eSTART, i });
-        }
-      } else if ((this.held[row] || 0) === 1) {
-        // First finger: jump to slice
+      if ((this.held[row] || 0) === 1) {
+        // First finger: jump to slice position
         this.first[row] = x;
-        const cut = x; // 0-indexed column = slice position
-        this.event({ t: eCUT, i, pos: cut });
+        this.event({ t: eCUT, i, pos: x });
       } else if ((this.held[row] || 0) === 2) {
         // Second finger: prepare for loop
         this.second[row] = x;
