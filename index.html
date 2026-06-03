@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MLR Web</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>" />
   <link rel="stylesheet" href="css/style.css?v=og-rewrite-1" />
 </head>
 <body>
@@ -28,102 +29,17 @@
       <input id="filePicker" type="file" accept="audio/*" multiple />
     </section>
 
-    <section class="patterns" aria-label="Pattern recorder">
-      <h2>Patterns</h2>
-      <div class="pattern-grid">
-        <div class="pattern-slot"><strong>P1</strong><button data-pattern-action="record" data-pattern-slot="0">Rec</button><button data-pattern-action="play" data-pattern-slot="0" disabled>Play</button><span id="pattern-0-status" class="muted">empty</span></div>
-        <div class="pattern-slot"><strong>P2</strong><button data-pattern-action="record" data-pattern-slot="1">Rec</button><button data-pattern-action="play" data-pattern-slot="1" disabled>Play</button><span id="pattern-1-status" class="muted">empty</span></div>
-        <div class="pattern-slot"><strong>P3</strong><button data-pattern-action="record" data-pattern-slot="2">Rec</button><button data-pattern-action="play" data-pattern-slot="2" disabled>Play</button><span id="pattern-2-status" class="muted">empty</span></div>
-        <div class="pattern-slot"><strong>P4</strong><button data-pattern-action="record" data-pattern-slot="3">Rec</button><button data-pattern-action="play" data-pattern-slot="3" disabled>Play</button><span id="pattern-3-status" class="muted">empty</span></div>
-      </div>
-      <p class="hint">Record captures slice hits with timing. Play loops the captured gesture. On the monome nav row: columns 5–8 play/record P1–P4; columns 9–12 are recalls.</p>
+    <section class="grid-section">
+      <div id="grid" class="grid"></div>
     </section>
 
-    <section class="workspace">
-      <div>
-        <h2>Grid mirror</h2>
-        <div id="grid" class="grid" aria-label="16 by 8 monome grid mirror"></div>
+    <section class="tracks" id="tracks"></section>
 
-        <div class="fn-reference" aria-label="Nav row reference">
-          <h3>Nav row (top)</h3>
-          <div class="fn-grid">
-            <div class="fn-group">
-              <span class="fn-label">View</span>
-              <div class="fn-buttons">
-                <button class="fn-btn active" id="fn-rec" title="REC view: record, speed, reverse">REC</button>
-                <button class="fn-btn" id="fn-cut" title="CUT view: slice jumping, two-finger loop">CUT</button>
-                <button class="fn-btn" id="fn-clip" title="CLIP view: select clip per track">CLIP</button>
-              </div>
-            </div>
-            <div class="fn-group">
-              <span class="fn-label">Patterns</span>
-              <div class="fn-buttons">
-                <button class="fn-btn" id="fn-p1-play" title="Pattern 1 play/stop">P1</button>
-                <button class="fn-btn" id="fn-p2-play" title="Pattern 2 play/stop">P2</button>
-                <button class="fn-btn" id="fn-p3-play" title="Pattern 3 play/stop">P3</button>
-                <button class="fn-btn" id="fn-p4-play" title="Pattern 4 play/stop">P4</button>
-              </div>
-            </div>
-            <div class="fn-group">
-              <span class="fn-label">Recalls</span>
-              <div class="fn-buttons">
-                <button class="fn-btn" id="fn-r1" title="Recall 1">R1</button>
-                <button class="fn-btn" id="fn-r2" title="Recall 2">R2</button>
-                <button class="fn-btn" id="fn-r3" title="Recall 3">R3</button>
-                <button class="fn-btn" id="fn-r4" title="Recall 4">R4</button>
-              </div>
-            </div>
-            <div class="fn-group">
-              <span class="fn-label">Alt / Quant</span>
-              <div class="fn-buttons">
-                <button class="fn-btn" id="fn-quantize" title="Quantize toggle (hold for TIME view)">Q</button>
-                <button class="fn-btn" id="fn-alt" title="Alt modifier">ALT</button>
-              </div>
-            </div>
-          </div>
-          <p class="fn-hint" id="fn-hint">REC view — Tap a track pad to loop from that slice. Tap the same pad again to stop.</p>
-        </div>
-      </div>
-      <aside>
-        <h2>Tracks</h2>
-        <div id="tracks"></div>
-      </aside>
-    </section>
+    <section class="patterns" id="patterns"></section>
 
-    <section class="docs-card">
-      <h2>How to use</h2>
-      <div class="docs-grid">
-        <div class="docs-block">
-          <h3>1. Load audio</h3>
-          <p>Click <strong>Start audio</strong>, then drag audio files onto track slots or click a track to pick files. Each track plays one clip at a time.</p>
-        </div>
-        <div class="docs-block">
-          <h3>2. REC view (default)</h3>
-          <p>Tap a track row to set focus. Use columns: <strong>Rec</strong> (arm), <strong>Focus</strong> (select), <strong>Tempo</strong> (map), <strong>Rev</strong> (reverse), <strong>Speed</strong> (x9–x16), <strong>Stop/Start</strong> (x16). Alt+focus toggles tempo map.</p>
-        </div>
-        <div class="docs-block">
-          <h3>3. CUT view</h3>
-          <p>Tap any pad in track rows to jump to that slice. <strong>Two-finger press</strong> sets a loop region (first finger = start, second = end). Alt+press toggles start/stop.</p>
-        </div>
-        <div class="docs-block">
-          <h3>4. CLIP view</h3>
-          <p>Select a clip (x=1–7) for each track. Each track can point to any of 16 clips. Clips are independent audio buffers.</p>
-        </div>
-        <div class="docs-block">
-          <h3>5. Patterns</h3>
-          <p>Press a <strong>REC</strong> button (P1–P4), perform slice hits, press again to stop. Press <strong>PLAY</strong> to loop the captured gesture. Alt+pattern button clears.</p>
-        </div>
-        <div class="docs-block">
-          <h3>6. Nav row</h3>
-          <p>Top row: x=1 REC, x=2 CUT, x=3 CLIP, x=5–8 patterns, x=9–12 recalls, x=15 quantize (hold for TIME), x=16 alt. Alt+x=1 clears buffer.</p>
-        </div>
-        <div class="docs-block">
-          <h3>7. Connect monome</h3>
-          <p>Click <strong>Connect monome USB</strong>. The browser talks to the local serialosc bridge. Requires a Chromium browser over HTTPS or localhost.</p>
-        </div>
-      </div>
-    </section>
+    <section class="fn-ref" id="fnRef"></section>
   </main>
+
   <script type="module" src="js/app.js?v=og-rewrite-1"></script>
 </body>
 </html>

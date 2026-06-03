@@ -65,6 +65,8 @@ export class MonomeBridge {
               this.onStatus('connected: ' + this._deviceName);
               // Send initial frame (batched)
               this._pushFrame().then(() => resolve());
+            } else if(msg.msg.startsWith('error') || msg.msg.startsWith('failed')){
+              reject(new Error(msg.msg));
             }
             break;
           case 'key':

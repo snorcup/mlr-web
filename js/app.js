@@ -75,21 +75,30 @@ document.getElementById('bpm').oninput = e => core.setBpm(e.target.value);
 
 document.getElementById('connectMonome').onclick = async () => {
   const keyHandler = e => { core.handleGridKey(e, now()); };
-  const statusHandler = s => setPill('monomeStatus', s, s === 'connected' || s.startsWith('connected') ? 'ok' : 'warn');
+  const statusHandler = s => {
+    console.log('[monome status]', s);
+    setPill('monomeStatus', s, s.startsWith('connected') || s === 'bridge connected' ? 'ok' : 'warn');
+  };
   // Try bridge first
   try {
+    statusHandler('connecting to bridge...');
     monome = new MonomeBridge({ onKey: keyHandler, onStatus: statusHandler });
     await monome.connect();
+    statusHandler('monome connected via bridge');
     return;
   } catch (err) {
     console.log('[monome] bridge failed:', err.message);
+    statusHandler('bridge failed: ' + err.message);
   }
   // Fall back to Web Serial
   try {
+    statusHandler('connecting via Web Serial...');
     monome = new MonomeSerial({ onKey: keyHandler, onStatus: statusHandler });
     await monome.connect();
+    statusHandler('monome connected via USB');
   } catch (err) {
-    setPill('monomeStatus', err.message, 'err');
+    console.log('[monome] serial failed:', err.message);
+    setPill('monomeStatus', 'failed: ' + err.message, 'err');
   }
 };
 
