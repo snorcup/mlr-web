@@ -18,10 +18,11 @@
 As of the latest deployment:
 
 - **6 tracks** (faithful to OG MLR v2.2.5), **16 clips**
-- **4 views:** REC (record/speed/reverse), CUT (slice triggering + loop), CLIP (clip management), TIME (tempo/quantize)
-- **4 pattern slots** (record/play/stop on nav row x=4..7)
-- **4 recall slots** (record/play on nav row x=8..11)
-- **Per-track modes:** CUT (toggle loop/stop), SOLO, MUTE, ONCE (one-shot) — assigned via bottom row x=4..7
+- **3 views:** CUT (default, slice triggering + loop), REC (per-track controls), TIME (loop regions)
+- **4 pattern slots** (P1-P4) — one button each, toggle record/play
+- **4 recall slots** (R1-R4) — record and replay parameter snapshots
+- **Per-track modes:** CUT (toggle loop/stop), SOLO, MUTE, ONCE (one-shot) — assigned via bottom row x=0-3
+- **STOP ALL** — immediately kills all playing tracks
 - **Quantize** (nav x=14) and **Alt modifier** (nav x=15)
 - **8×16 monome grid** with on-screen mirror for testing
 - **Primary monome connection:** WebSocket → serialosc-ws-bridge → serialosc daemon → USB
@@ -34,10 +35,10 @@ Internet
     ↓ HTTPS (443)
 Traefik on panel (100.126.50.30)
     ↓ HTTP (8088)
-mlr-web container on panel (127.0.0.1:8088 → 8080)
+mlr-web container on panel (100.126.50.30:8088 → 8080)
     ↓ static HTML/JS/CSS (nginx)
 
-User's browser (snorcup-ips, 100.106.156.59)
+User's browser
     ↓ WebSocket (localhost:8089)
 serialosc-ws-bridge on user's machine
     ↓ OSC UDP (127.0.0.1:12002)
@@ -46,7 +47,7 @@ serialosc daemon on user's machine
 monome classic 8x16 (USB)
 ```
 
-**Key point:** The web server (nginx in Docker) runs on panel, but the serialosc bridge runs on the **user's local machine** (snorcup-ips) where the monome USB is physically connected. The browser connects to both.
+**Key point:** The web server (nginx in Docker) runs on panel, but the serialosc bridge runs on the **user's local machine** where the monome USB is physically connected. The browser connects to both.
 
 ## DNS
 
@@ -66,16 +67,16 @@ The test stage ensures no broken code makes it into the production image.
 
 ## Cache Busting
 
-After each deploy, the HTML references to JS/CSS are updated with a new query string (`?v=views-1`, etc.) to force browsers to fetch fresh assets. The nginx config also sets `Cache-Control: no-cache, no-store, must-revalidate` for HTML responses.
+After each deploy, the HTML references to JS/CSS are updated with a new query string (`?v=og-rewrite-3`, etc.) to force browsers to fetch fresh assets. The nginx config also sets `Cache-Control: no-cache, no-store, must-revalidate` for HTML responses.
 
 ## Update Production
 
 ### Standard Update (pull from Git)
 
-On the user's machine (agent/CI), the agent deploys via:
+On the agent (Hermes), the deploy process:
 
 ```bash
-# On agent (this machine), build and push image
+# Build and push image to panel
 cd /root/snorcup/mlr-web
 docker build -t snorcup/mlr-web:local .
 docker save snorcup/mlr-web:local | ssh panel 'docker load'
@@ -86,10 +87,10 @@ Then on panel (or via SSH from agent):
 ```bash
 cd /opt/mlr-web
 git pull --ff-only
-docker compose up -d --build mlr-web
+docker compose up -d mlr-web
 ```
 
-**Note**: The `docker-compose.yml` in the repo binds to `127.0.0.1:8088`. On panel, it's patched to bind to `100.126.50.30:8088` so Traefik can reach the backend. The `docker compose up -d` (without `--build`) uses the already-loaded image.
+The `docker compose up -d` (without `--build`) uses the already-loaded image.
 
 ### Verify Deployment
 
@@ -147,7 +148,7 @@ If rebuilding from scratch, create the provider/application via Authentik UI or 
 
 ## serialosc Bridge (User's Machine)
 
-The bridge is not part of the Docker deployment — it runs on the user's local machine (snorcup-ips) and is **not managed by this repo's deployment process**.
+The bridge is not part of the Docker deployment — it runs on the user's local machine and is **not managed by this repo's deployment process**.
 
 If the bridge stops working after a reboot:
 
@@ -191,6 +192,7 @@ docker compose up -d --build mlr-web
 ```
 
 Or manually load a previous image that's still in Docker's local cache:
+
 ```bash
 docker images | grep mlr-web
 docker tag snorcup/mlr-web:local snorcup/mlr-web:backup  # before updating

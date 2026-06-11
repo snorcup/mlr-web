@@ -29,15 +29,10 @@ Used when the bridge is unavailable or for hardware that emits key bytes over th
 
 ## Grid Layout
 
-- Rows 0-6: track slice triggers (tracks 1-7)
-- Columns 0-15: slices 1-16 for each track row
-- Bottom row (row 7): function controls
-  - x=0: CUT mode
-  - x=1: REC mode
-  - x=2: TIME mode
-  - x=3: STOP ALL
-  - x=8-11: Play patterns P1-P4
-  - x=12-15: Record patterns P1-P4
+- Rows 1-6: track slice triggers (tracks 1-6)
+- Columns 0-15: 16 slices per track row
+- Row 0 (nav): view buttons (x=0-2), patterns (x=4-7), recalls (x=8-11), quantize (x=14), alt (x=15)
+- Row 7 (function): track modes (x-0-3: CUT/SOLO/MUTE/ONCE), pattern toggle (x-4-7)
 
 ## Monome Serial Protocol (Web Serial Fallback)
 

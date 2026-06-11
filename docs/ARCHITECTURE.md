@@ -24,29 +24,27 @@ Web Serial API direct connection. Opens the monome as a serial device (FTDI), pa
 ### `AudioEngine` (js/audio-engine.js)
 Web Audio API clip and track manager. Owns `AudioContext`, master gain, clip array, and track state.
 
-- Track state: clipIndex, source node, gain node, loop/rate/volume, loopStart/loopEnd, muted, once
-- **loop mode**: tracks default to `loop: true`; clips loop continuously from trigger position
-- **custom loop regions**: per-track loopStart/loopEnd override; clip loops within that region
-- **one-shot mode** (`track.once`): when set, `source.loop = false`; clip plays through once from trigger position
-- **per-track mute** (`track.muted`): when set, gain is set to 0; independent of playback state
+- Track state: clipIndex, source node, gain node, loop/rate/volume, loopStart/loopEnd, muted, mode (CUT/SOLO/MUTE/ONCE)
+- **CUT mode** (default): tracks loop continuously from trigger position
+- **ONCE mode**: `source.loop = false`; clip plays through once from trigger position
+- **SOLO mode**: mutes all other tracks; track itself is unmuted
+- **MUTE mode**: track gain set to 0; independent of playback state
+- **Custom loop regions**: per-track loopStart/loopEnd override; clip loops within that region
 - `loadFiles(files)`: decodes audio files via `decodeAudioData`, pushes to clip array
-- `playTrack(trackIndex, slice)`: stops current source, creates new `AudioBufferSourceNode`, starts from slice offset. Honors `loop`, `once`, `loopStart`/`loopEnd`, `muted`, and `volume` per track.
-- `jump(trackIndex, slice)`: alias for `playTrack` (stops and restarts from new position)
+- `playTrack(trackIndex, slice)`: stops current source, creates new `AudioBufferSourceNode`, starts from slice offset. If already playing at same slice, toggles off.
+- `jump(trackIndex, slice)`: if not playing, starts from slice; if playing, repositions
 - `stopTrack(trackIndex)`: stops audio source, marks track not playing
-- `setVolume(trackIndex, value)`: set per-track volume (0-1), ignored if track is muted
-- `setRate(trackIndex, value)`: set per-track playback rate
-- `setMuted(trackIndex, muted)` / `toggleMute(trackIndex)`: per-track mute control
-- `setOnce(trackIndex, once)`: enable/disable one-shot mode per track
-- `positionSlice(trackIndex)`: returns current clip position as column 0-15; accounts for loop region and one-shot playback
-- Tracks are independent: multiple tracks can loop simultaneously
+- `stopAll()`: stops all tracks
+- `setMode(trackIndex, mode)`: sets per-track mode, handles SOLO/MUTE gain changes
+- `positionSlice(trackIndex)`: returns current clip position as column 0-15
+- Tracks are independent: multiple tracks can play simultaneously
 
 ### `MidiManager` (js/midi.js)
-Web MIDI adapter. Listens for MIDI clock, start, and stop messages. Normalizes raw MIDI into clock-like events.
+Web MIDI adapter. Listens for MIDI clock, start, and stop messages.
 
 - `enable()`: requests `navigator.requestMIDIAccess`, attaches `onmidimessage` handlers
 - Handles: MIDI clock (`0xF8` → `onClock`), start (`0xFA` → `onStart`), stop (`0xFC` → `onStop`)
 - `clockTicks` counter incremented per clock message (24 PPQN)
-- Exposes `onMessage` hook for future controller mapping
 
 ### `InternalClock` (js/midi.js)
 Internal quantization clock based on `AudioContext.currentTime`.
@@ -59,46 +57,39 @@ Internal quantization clock based on `AudioContext.currentTime`.
 Pure-ish sampler state machine. Contains all grid logic, view modes, per-track modes, loop toggle, and pattern recording.
 
 - **State**: selected view (CUT/REC/TIME), quantize on/off, event queue, track configs, pattern array
-- **Per-track modes** (`_trackModes[_]`): each track is one of `CUT`, `SOLO`, `MUTE`, `ONCE`
+- **Per-track modes**: each track is one of `CUT`, `SOLO`, `MUTE`, `ONCE`
   - `CUT` (default): normal toggle — tap to loop, tap same pad to stop
   - `SOLO`: mutes all other tracks; track itself is unmuted
-  - `MUTE`: track is silenced; slice presses ignored
-  - `ONCE`: one-shot playback; clip plays through once without looping
-- **Pending mode** (`_pendingMode`): when a mode button is pressed, this holds the mode to apply. Next track row press applies the mode. Press the same mode button again to cancel.
+  - `MUTE`: track is silenced
+  - `ONCE`: one-shot playback; clip plays through once without looping. Multiple tracks can play simultaneously.
+- **Pending mode** (`pendingMode`): when a mode button is pressed, this holds the mode to apply. Next track row press applies the mode. Press the same mode button again to cancel.
 - **`handleGridKey(event, now)`**: main entry point for all pad presses
-  - Bottom row:
-    - x=0-2: view selection (CUT/REC/TIME)
-    - x=3: stop all
-    - x=4-7: per-track mode selectors (CUT/SOLO/MUTE/ONCE). If a mode is pending, it's applied to the pressed track row.
-    - x=8-11: pattern play (P1-P4)
-    - x=12-15: pattern record (P1-P4)
-  - Track rows: behavior depends on the track's assigned mode (see Per-Track Modes section below)
-- **`applyTrackMode(trackIndex, mode)`**: applies a mode to a track, updates AudioEngine state (mute/once), and renders
-- **`exec(event)`**: calls `audio.jump(track, slice)` to trigger playback
-- **`stopTrack(trackIndex)`**: stops audio source, clears active slice, removes queued events
+  - Row 0 (nav): view select (x=0-2), patterns (x=4-7), recalls (x=8-11), quantize (x=14), alt (x=15)
+  - Rows 1-6 (tracks): behavior depends on view mode and per-track mode
+  - Row 7 (function): mode buttons (x=0-3), pattern toggle (x=4-7)
+- **`setTrackMode(trackIndex, mode)`**: applies a mode to a track, updates AudioEngine state
 - **`stopAll()`**: stops all tracks
-- **Pattern recording**: `startPatternRecord(slot)` / `stopPatternRecord(slot)` / `togglePatternRecord(slot)`
-  - Records `{track, slice, time}` events into pattern slot while recording
-  - `recordPatternEvent(event, now)`: appends to all recording patterns
-- **Pattern playback**: `startPatternPlayback(slot)` / `stopPatternPlayback(slot)` / `togglePatternPlayback(slot)`
-  - `tickPatterns(now)`: emits due events on each tick, loops at recorded length
-  - Events sorted by time; supports loop wraparound via cycle/phase tracking
+- **Pattern recording**: 4 slots. Records `{track, slice, time}` events while recording.
+- **Pattern playback**: loops at recorded duration. Events sorted by time; supports loop wraparound.
+- **Recall recording**: 4 slots. Captures all events in real-time for instant playback.
 - **`framebuffer()`**: generates 8x16 LED grid array
-  - CUT/REC mode: playhead position per track (bright = current slice)
-  - TIME mode: loop region per track (bright = start, dim = interior range, single bright = start set, waiting for end)
-  - Bottom row: view LEDs, stop indicator, mode button LEDs (lit when pending), pattern play/record LEDs
+  - Row 0: view LEDs (bright=active), pattern/recall LEDs, quantize/alt
+  - Rows 1-6: playhead position per track (bright = current slice), loop region (dim)
+  - Row 7: mode button LEDs (lit when pending/active), pattern LEDs (off/dim/medium/bright)
 - **`render()`**: calls `onRender(framebuffer, state)` → UI + monome LED update
 
 ### `UI` (js/ui.js)
 DOM adapter and on-screen grid mirror.
 
 - `makeGrid()`: creates 128 pad buttons (8 rows × 16 columns)
-- `makeTracks()`: creates 7 track panels with drop zones, file pickers, and per-track mode labels
-- `render(frame)`: updates pad CSS classes (`on` l≥12, dim 0<l<12)
-- `renderPatterns(patterns)`: updates P1-P4 button states and status text
+- `makeTracks()`: creates 6 track panels with drop zones, file pickers, and per-track mode labels
+- `render(frame)`: updates pad CSS classes (`on` if l≥12, `dim` if 0<l<12)
+- `renderPatterns(patterns)`: updates pattern button states and status text
 - `setClipNames(clips)`: updates track labels with loaded clip names
 - `onPad(fn)`: attaches pointerdown/up/leave handlers, emits `{x, y, state}` events
 - `onDropFiles` / `onFilePick`: callbacks for drag-and-drop and file picker integration
+- `updateTrackModes(tracks)`: updates per-track mode badges (C/S/M/1)
+- `updatePendingMode(pending)`: shows pending mode indicator
 
 ## Data Flow
 
@@ -112,11 +103,15 @@ serialosc-ws-bridge (Node.js, ws://localhost:8089)
 MonomeBridge.connect()
     ↓ {type:"key", x, y, z}
 MlrCore.handleGridKey()
-    ├─ bottom row → view/mode/pattern dispatch
-    │   ├─ mode button press → set _pendingMode
-    │   └─ if _pendingMode set + track row pressed → applyTrackMode(track, mode)
-    ├─ exec() → audio.jump(track, slice)
-    │                                    ↑ respects track.once, track.muted
+    ├─ row 0 → view/mode/pattern/recall dispatch
+    ├─ rows 1-6 → CUT/REC/TIME view behavior per track
+    │   ├─ CUT: toggle loop/stop (same slice), jump (different slice)
+    │   ├─ ONCE: always start new one-shot
+    │   └─ SOLO/MUTE: handled by AudioEngine
+    └─ row 7 → mode buttons, pattern toggle
+        ├─ mode button press → set pendingMode
+        └─ if pendingMode set + track row pressed → setTrackMode(track, mode)
+    ├─ exec → audio.jump(track, slice)
     └─ AudioEngine.playTrack(track, slice)
          ↓ AudioBufferSourceNode.start()
 Web Audio API → speakers
@@ -127,29 +122,29 @@ MlrCore.tick(now) ← InternalClock.shouldTick(now)
 MlrCore.render()
     ↓ framebuffer (8×16)
     → UI.render(frame)     → DOM grid mirror update
-    → updateFnReference()  → mode button LEDs, hint text
-    → AudioEngine draw  → WebSocket → bridge → OSC → serialosc → monome LEDs
+    → UI.updateTrackModes() → track panel badges
+    → monome draw        → WebSocket → bridge → OSC → serialosc → monome LEDs
 ```
 
 ## 16 Slices on an 8x16 Classic
 
-Rows 0-6 are tracks. Columns 0-15 map directly to slices 1-16:
+Rows 1-6 are tracks. Columns 0-15 map directly to 16 equal divisions of the loaded clip.
 
 ```
-slice = x  (direct mapping, no modifier needed)
+slice = x  (direct mapping, 0-15)
 ```
 
 Slice offset in seconds: `(slice / 16) * clip.duration`
 
-The bottom row (row 7) is reserved for function controls.
+Row 0 is the nav/control row. Row 7 is the function row (modes + patterns).
 
-## Grid Toggle Logic (CUT/REC mode, default per-track mode)
+## Grid Toggle Logic
 
-Each track remembers its last active slice. On pad press:
+Each track remembers its last active slice. On pad press in CUT view:
 
-1. If the track's per-track mode is `MUTE` → ignores slice presses
-2. If the track's per-track mode is `ONCE` → always restarts from pressed slice (no toggle-stop; one-shot each time)
-3. If the track's per-track mode is `SOLO` → mutes all other tracks, then proceeds as CUT
+1. If the track's mode is `MUTE` → press is ignored (track is silenced)
+2. If the track's mode is `ONCE` → always starts a new one-shot from pressed slice (no toggle-stop). Previous tracks continue playing.
+3. If the track's mode is `SOLO` → AudioEngine mutes all other tracks, then proceeds as CUT
 4. CUT mode (default):
    - If the track is already playing at that exact slice → **stop** the track (toggle off)
    - If the track is playing at a different slice → **restart** from new slice
@@ -157,10 +152,10 @@ Each track remembers its last active slice. On pad press:
 
 ## Per-Track Mode Assignment
 
-The two-step interaction for assigning modes to tracks:
+Two-step interaction for assigning modes to tracks:
 
-1. Press mode button (bottom row, x=4,5,6,7) → button lights up, `_pendingMode` is set
-2. Press a track row (y=0-6) → `applyTrackMode(track, mode)` is called, `_pendingMode` is cleared
+1. Press mode button (bottom row, x=0=CUT, x=1=SOLO, x=2=MUTE, x=3=ONCE) → button lights up, `pendingMode` is set
+2. Press a track row (y=1-6) → `setTrackMode(track, mode)` is called, `pendingMode` is cleared
 3. Press the same mode button again → cancels pending mode without applying
 
-This allows quick mode assignment to multiple tracks without navigating menus: press SOLO, tap tracks 1, 3, 5 — now only those three tracks are audible.
+This allows quick mode assignment to multiple tracks: press SOLO, tap tracks 1, 3, 5 — now only those three tracks are audible.

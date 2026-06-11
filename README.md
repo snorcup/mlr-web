@@ -4,7 +4,7 @@ A browser-based, MLR-inspired live sample-cutting instrument for a **monome clas
 
 ## Status
 
-Functional prototype with Dockerized static hosting, serialosc WebSocket bridge support, 7-track sample slicing with 16 direct slice columns on an 8x16 monome, per-track loop regions, per-track modes (CUT/SOLO/MUTE/ONCE), CUT/REC/TIME view modes, 4-slot pattern recording/playback, internal quantized clock, and MIDI plumbing scaffold.
+Functional prototype with Dockerized static hosting, serialosc WebSocket bridge support, 6-track sample slicing with 16 direct slice columns on an 8x16 grid, per-track loop regions, per-track modes (CUT/SOLO/MUTE/ONCE), CUT/REC/TIME view modes, 4-slot pattern recording/playback, internal quantized clock, and MIDI plumbing scaffold.
 
 ## Live URL
 
@@ -14,15 +14,14 @@ Functional prototype with Dockerized static hosting, serialosc WebSocket bridge 
 
 - Monome classic 8x16 USB via local serialosc WebSocket bridge (`ws://localhost:8089`)
 - Web Serial direct mode fallback (for devices with compatible firmware)
-- 7 playable track rows on an 8x16 grid
-- 16 slices per track mapped directly across columns 1-16
+- 6 playable track rows on an 8x16 grid
+- 16 slices per track mapped directly across columns 0-15
 - Per-track looping with custom loop regions (start/end)
 - Per-track modes: CUT (toggle loop/stop), SOLO (mute others), MUTE (silence track), ONCE (one-shot, no loop)
-- Toggle playback: tap a pad to loop, tap same pad again to stop
 - CUT / REC / TIME view modes with distinct grid behaviors
-- STOP ALL button (bottom row column 4)
-- Per-track mode buttons (bottom row columns 5-8): press mode, then press track row to apply
-- 4 pattern recorder slots (P1-P4) that capture slice gestures and loop them
+- 4 pattern recorder slots (P1-P4) — one button each, toggle record/play
+- 4 recall slots (R1-R4) — record and replay parameter snapshots
+- STOP ALL — immediately kills all playing tracks
 - Web Audio playback with per-track jump, rate, volume, and position tracking
 - Internal quantization clock (synced to `AudioContext.currentTime`), BPM-adjustable
 - Web MIDI manager: listens for MIDI clock (`0xF8`), start (`0xFA`), stop (`0xFC`)
@@ -34,30 +33,39 @@ Functional prototype with Dockerized static hosting, serialosc WebSocket bridge 
 ## Grid Layout
 
 ```
-Columns:  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16
+Columns:  0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
           └──────────── 16 slices per track ──────────────┘
 
-Row 1:    Track 1 slices 1-16  (tap = loop from slice, tap again = stop)
-Row 2:    Track 2 slices 1-16
-Row 3:    Track 3 slices 1-16
-Row 4:    Track 4 slices 1-16
-Row 5:    Track 5 slices 1-16
-Row 6:    Track 6 slices 1-16
-Row 7:    Track 7 slices 1-16
-Row 8:    Function/control row (see below)
+Row 0:    Nav row (views, patterns, recalls, quantize, alt)
+Row 1:    Track 1 slices 0-15  (tap = loop, tap same = stop)
+Row 2:    Track 2 slices 0-15
+Row 3:    Track 3 slices 0-15
+Row 4:    Track 4 slices 0-15
+Row 5:    Track 5 slices 0-15
+Row 6:    Track 6 slices 0-15
+Row 7:    Function row (modes, patterns)
 ```
 
-### Bottom Row (Row 8) Button Map
+### Row 0 (Nav)
 
-| x=0 | x=1 | x=2 | x=3 | x=4 | x=5 | x=6 | x=7 | x=8 | x=9 | x=10 | x=11 | x=12 | x=13 | x=14 | x=15 |
-|-----|-----|-----|-----|-----|-----|-----|-----|-----|-----|------|------|------|------|------|------|
-| CUT | REC | TIME | STOP ALL | CUT | SOLO | MUTE | ONCE | P1 play | P2 play | P3 play | P4 play | P1 rec | P2 rec | P3 rec | P4 rec |
+| x=0 | x=1 | x=2 | x=3 | x=4-7 | x=8-11 | x=12-13 | x=14 | x=15 |
+|-----|-----|-----|-----|--------|---------|----------|------|------|
+| REC | CUT | CLIP | dark | P1-P4 | R1-R4 | dark | Quant | Alt |
 
-Columns 0-2: **View modes** (see below)
-Column 3: **STOP ALL** — kills all playing tracks
-Columns 4-7: **Per-track mode selectors** (see Per-Track Modes below)
-Columns 8-11: **Pattern playback** (P1-P4)
-Columns 12-15: **Pattern record** (P1-P4)
+- **x=0-2**: View buttons (REC, CUT, CLIP). Bright = active view. Dark = inactive.
+- **x=4-7**: Pattern triggers. Off = empty, dim = has data, medium = playing, bright = recording. Alt+press to clear.
+- **x=8-11**: Recall slots. Off = empty, dim = has data, medium = playing, bright = recording.
+- **x=14**: Quantize toggle. Off = immediate, lit = quantized to clock.
+- **x=15**: Alt modifier (held).
+
+### Row 7 (Function)
+
+| x=0 | x=1 | x=2 | x=3 | x=4 | x=5 | x=6 | x=7 | x=8-15 |
+|-----|-----|-----|-----|-----|-----|-----|-----|--------|
+| CUT | SOLO | MUTE | ONCE | P1 | P2 | P3 | P4 | dark |
+
+- **x=0-3**: Track mode selectors. Press a mode, then press a track row (y=1-6) to apply. Press same mode again to cancel pending.
+- **x-4-7**: Pattern toggle. Empty → record, recording → stop+play, playing → stop, has data → play.
 
 ## View Modes
 
@@ -67,52 +75,60 @@ Columns 12-15: **Pattern record** (P1-P4)
 - Tap a different pad on same track → restarts from new slice
 - Tap a pad on a different track → starts that track independently
 - Position LED shows current playhead, cycling across all 16 columns
+- Two-finger press → set loop region on release
+- ONCE mode: each tap starts a new one-shot; previous tracks continue playing
 
 ### REC
 - Same trigger behavior as CUT
-- Visual indicator (REC LED lit) shows recording mindset
-- Use with P1-P4 record buttons (bottom row x=12-15) to capture performances into pattern slots
-- Recorded events capture: track row, slice column, relative timestamp
+- Per-track controls: record arm (x=0), reverse (x=7), speed (x=8-14, x=11=1x), start/stop (x=15)
+- Focus select (x=2,3)
+- Use with P1-P4 pattern buttons to capture performances into pattern slots
 
 ### TIME
 - Sets per-track loop region (start and end points)
-- 1st press on a track pad → sets loop start (bright LED at that column)
-- 2nd press on same track → sets loop end (range lights up, start=bright, middle=dim)
-- Playback loops only within the defined region instead of the full clip
-- To reset: after setting end, the track is ready; press again to start over
-- Grid shows loop region per track: bright = start, dim = region interior
+- 1st press on a track pad → sets loop start (bright LED)
+- 2nd press on same track → sets loop end (range lights up)
+- Playback loops only within the defined region
 
 ## Per-Track Modes
 
-Each track can be independently assigned a mode. Press a mode button (bottom row x=4-7), then press any track row (y=0-6) to apply that mode to the track. The mode button lights up to indicate a pending assignment. Press the same mode button again to cancel.
+Each track can be independently assigned a mode. Press a mode button (bottom row x=0-3), then press any track row (y=1-6) to apply. The mode button lights up to indicate a pending assignment. Press the same mode button again to cancel.
 
 | Mode | Button | Behavior |
 |------|--------|----------|
-| **CUT** (default) | x=4 | Normal toggle: tap slice to loop, tap same pad to stop. Unmutes the track. |
-| **SOLO** | x=5 | Mutes all other tracks so only this track plays. Unmutes the target track. |
-| **MUTE** | x=6 | Silences the track. Track will not play until mode is changed. |
-| **ONCE** | x=7 | One-shot playback: clip plays through once from the triggered slice without looping. Unmutes the track. |
+| **CUT** (default) | x=0 | Normal toggle: tap slice to loop, tap same pad to stop. |
+| **SOLO** | x=1 | Mutes all other tracks so only this track plays. |
+| **MUTE** | x=2 | Silences the track. |
+| **ONCE** | x=3 | One-shot playback: clip plays through once without looping. Multiple tracks can play simultaneously. |
 
 Track mode indicators appear in the track panels:
+- `C` (green) = CUT
 - `S` (purple) = SOLO
 - `M` (red) = MUTE
 - `1` (yellow) = ONCE
-- blank = CUT (default)
 
-When switching away from SOLO or MUTE, other tracks are unmuted (unless they are individually set to MUTE). Multiple tracks can be in SOLO mode simultaneously (they'll all play, non-solo tracks are muted).
-
-## Pattern Recording
+## Patterns
 
 - 4 independent pattern slots: P1, P2, P3, P4
-- Start recording a slot: press P1-P4 REC button (bottom row x=12-15)
+- **Bottom row (x=4-7)**: One button per pattern. Press to toggle:
+  - Empty → start recording
+  - Recording → stop recording, start playback
+  - Playing → stop playback
+  - Has data, not playing → start playback
+- **Nav row (x=4-7)**: Same pattern triggers (mirrors bottom row for monome compatibility)
+- **Alt + press** (nav row): Clear pattern
 - While recording, all slice pad hits across all tracks are captured with timestamps
-- Stop recording: press the same REC button again
-- Pattern length = duration from first to last recorded event (min 0.25s)
-- Playback: press P1-P4 play button (bottom row x=8-11)
-- Playing patterns loop at their recorded duration
-- Pattern playback is independent of live pad triggers
+- Pattern playback loops at recorded duration
 - Multiple patterns can play simultaneously
-- Pattern LEDs: bright = recording, medium = playing, dim = has events, off = empty
+- Pattern LEDs: bright = recording, medium = playing, dim = has data, off = empty
+
+## Recalls
+
+- 4 recall slots: R1, R2, R3, R4 (nav row x=8-11)
+- 1st press → start recording all subsequent events
+- 2nd press → stop recording
+- 3rd press → replay (fire) the recorded events
+- Alt + press → clear
 
 ## Using the App
 
@@ -121,14 +137,15 @@ When switching away from SOLO or MUTE, other tracks are unmuted (unless they are
 3. Click **Start audio** (required by browser autoplay policy)
 4. Load audio files: drag-and-drop onto track slots, or click a track to open file picker
 5. Use the on-screen grid or physical monome:
-   - Tap pads to trigger loops (rows 1-7)
-   - Bottom row for functions (views, track modes, stop, patterns)
+   - Tap pads to trigger loops (rows 1-6)
+   - Row 0 for views, patterns, recalls
+   - Row 7 for track modes and pattern toggle
 6. Click **Connect monome USB** to connect hardware:
    - Browser connects to local serialosc bridge at `ws://localhost:8089`
    - Falls back to Web Serial direct mode if bridge unavailable
 7. Optional: click **Enable MIDI** to initialize Web MIDI support
 8. Adjust BPM with the number input (default: 120)
-9. Toggle Quantize on/off: when on, pad hits are queued to next clock tick
+9. Toggle Quantize on/off (nav x=14): when on, pad hits are queued to next clock tick
 
 ## Browser Requirements
 
@@ -153,7 +170,7 @@ Stop: `docker compose down`
 
 ```bash
 npm install        # install dev deps (vite)
-npm test           # run unit tests (7 tests)
+npm test           # run unit tests (44 tests)
 npm run check      # syntax check all JS files
 npm run serve      # Vite dev server at http://localhost:5173
 npm run build      # build verification
@@ -185,7 +202,7 @@ npm run build      # build verification
 │   ├── serialosc.service       # systemd unit for serialoscd
 │   └── build-check.js          # build verification script
 ├── test/
-│   └── mlr-core.test.js        # 7 unit tests
+│   └── mlr-core.test.js        # 44 unit tests
 ├── docs/
 │   ├── ARCHITECTURE.md         # system architecture and data flow
 │   ├── MONOME.md               # monome hardware protocol and bridge details
@@ -196,7 +213,7 @@ npm run build      # build verification
 ## Validation
 
 ```bash
-npm test          # 7 unit tests (grid mapping, quantize, parser, patterns)
+npm test          # 44 unit tests (grid mapping, quantize, parser, patterns, modes)
 npm run check     # syntax check all JS files
 npm run build     # build verification
 ```
@@ -231,10 +248,13 @@ See [docs/MONOME.md](docs/MONOME.md) for monome classic USB protocol, serialosc 
 ## Roadmap
 
 - [x] Per-track modes (CUT/SOLO/MUTE/ONCE)
+- [x] 6 tracks (faithful to OG MLR)
+- [x] Pattern recording/playback
+- [x] Recall slots
+- [x] STOP ALL
 - [ ] External MIDI clock as selectable master clock source
 - [ ] MIDI learn for controller mappings (CC → volume, mute, track select)
 - [ ] Mute groups
-- [ ] Reverse playback per track
 - [ ] Multiple clip slots per track (switch which clip a track plays)
 - [ ] Live input capture via `getUserMedia` + `AudioWorklet`
 - [ ] Persistent project/session save and load

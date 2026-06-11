@@ -61,9 +61,9 @@
         <div class="docs-block">
           <h3>Grid layout</h3>
           <ul>
-            <li><strong>Row 0 (top)</strong> — Nav: view buttons, STOP ALL, patterns, recalls, quantize, alt</li>
+            <li><strong>Row 0 (top)</strong> — Nav: view buttons (x=0-2), patterns (x=4-7), recalls (x=8-11), quantize (x=14), alt (x=15)</li>
             <li><strong>Rows 1–6</strong> — Tracks 1–6, columns = 16 slice positions</li>
-            <li><strong>Row 7 (bottom)</strong> — Functions: CUT/REC/TIME views, STOP ALL, track modes, pattern play/record</li>
+            <li><strong>Row 7 (bottom)</strong> — Modes (x=0-3: CUT/SOLO/MUTE/ONCE), patterns (x=4-7)</li>
           </ul>
         </div>
 
@@ -92,31 +92,27 @@
         </div>
 
         <div class="docs-block">
-          <h3>Track modes (bottom row x=4–7)</h3>
+          <h3>Track modes (bottom row x=0–3)</h3>
           <p>Press a mode button, then press a track row to apply:</p>
           <ul>
-            <li><strong>CUT</strong> (x=4) — Normal: tap to loop, tap again to stop</li>
-            <li><strong>SOLO</strong> (x=5) — Mutes all other tracks</li>
-            <li><strong>MUTE</strong> (x=6) — Silences the track</li>
-            <li><strong>ONCE</strong> (x=7) — One-shot: plays through once without looping</li>
+            <li><strong>CUT</strong> (x=0) — Normal: tap to loop, tap again to stop</li>
+            <li><strong>SOLO</strong> (x=1) — Mutes all other tracks</li>
+            <li><strong>MUTE</strong> (x=2) — Silences the track</li>
+            <li><strong>ONCE</strong> (x=3) — One-shot: plays through once without looping</li>
           </ul>
           <p>Press the same mode button again to cancel pending assignment.</p>
         </div>
 
         <div class="docs-block">
-          <h3>STOP ALL (bottom row x=3)</h3>
-          <p>Immediately stops all playing tracks. Available in the nav row (x=3) and bottom row (x=3).</p>
-        </div>
-
-        <div class="docs-block">
-          <h3>Patterns (nav x=4–7, bottom x=8–15)</h3>
+          <h3>Patterns (nav x=4–7, bottom x=4–7)</h3>
           <ul>
             <li><strong>Empty</strong> — Press to start recording</li>
-            <li><strong>Recording</strong> — Press nav button to stop+play, or bottom rec to stop</li>
+            <li><strong>Recording</strong> — Press again to stop recording and start playback</li>
             <li><strong>Playing</strong> — Press to stop</li>
-            <li><strong>Alt + press</strong> — Clear pattern</li>
+            <li><strong>Has data</strong> — Press to play</li>
+            <li><strong>Alt + press</strong> (nav) — Clear pattern</li>
           </ul>
-          <p>Bottom row: x=8–11 = play, x=12–15 = record (dedicated buttons)</p>
+          <p>One button per pattern. Nav row and bottom row mirrors the same 4 patterns.</p>
         </div>
 
         <div class="docs-block">
