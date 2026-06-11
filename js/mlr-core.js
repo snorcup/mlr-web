@@ -42,18 +42,17 @@ const ePATTERN = 7;
 const NAV_REC = 0;
 const NAV_CUT = 1;
 const NAV_CLIP = 2;
-const NAV_STOP_ALL = 3;
-const NAV_PAT_START = 4;  // x=4..7: Pattern 1-4 play
+// x=3 unused (dark)
+const NAV_PAT_START = 4;  // x=4..7: Pattern 1-4
 const NAV_REC_START = 8;  // x=8..11: Recall 1-4
+// x=12,13 unused (dark)
 const NAV_QUANT = 14;
 const NAV_ALT = 15;
 
 // Bottom function row (y=7) — 0-indexed x
-const FN_VIEW_START = 0;   // x=0: CUT view, x=1: REC view, x=2: TIME view
-const FN_STOP_ALL = 3;     // x=3: STOP ALL
-const FN_MODE_START = 4;   // x=4: CUT mode, x=5: SOLO, x=6: MUTE, x=7: ONCE
-const FN_PAT_PLAY = 8;     // x=8..11: Pattern 1-4 play
-const FN_PAT_REC = 12;     // x=12..15: Pattern 1-4 record
+const FN_MODE_START = 0;   // x=0..3: CUT, SOLO, MUTE, ONCE
+// x=4..7: Pattern 1-4 (toggle record/play)
+// x=8..15: unused (dark)
 
 // REC view track columns
 const COL_REC = 0;
@@ -435,8 +434,6 @@ export class MlrCore {
         this.setView(vCUT);
       } else if (x === NAV_CLIP) {
         this.setView(vCLIP);
-      } else if (x === NAV_STOP_ALL) {
-        this.stopAll();
       } else if (x >= NAV_PAT_START && x < NAV_PAT_START + PATTERN_COUNT) {
         const pi = x - NAV_PAT_START;
         if (this.alt === 1) {
@@ -494,30 +491,12 @@ export class MlrCore {
   // ─── Bottom function row handler ───
 
   gridkeyFN(x, z, now) {
-    if (z !== 1) {
-      // Release: clear pending mode highlight
-      if (x >= FN_MODE_START && x < FN_MODE_START + 4) {
-        // mode button released
-      }
-      return;
-    }
+    if (z !== 1) return;
 
-    // View buttons (x=0,1,2)
-    if (x === 0) { this.setView(vCUT); return; }
-    if (x === 1) { this.setView(vREC); return; }
-    if (x === 2) { this.setView(vTIME); return; }
-
-    // STOP ALL
-    if (x === FN_STOP_ALL) {
-      this.stopAll();
-      return;
-    }
-
-    // Mode buttons (x=4..7) — set pending mode, apply on next track press
+    // Mode buttons (x=0..3) = CUT, SOLO, MUTE, ONCE
     if (x >= FN_MODE_START && x < FN_MODE_START + 4) {
       const mode = x - FN_MODE_START;
       if (this.pendingMode === mode) {
-        // Press same mode again = cancel
         this.pendingMode = null;
       } else {
         this.pendingMode = mode;
@@ -526,29 +505,21 @@ export class MlrCore {
       return;
     }
 
-    // Pattern play (x=8..11)
-    if (x >= FN_PAT_PLAY && x < FN_PAT_PLAY + PATTERN_COUNT) {
-      const pi = x - FN_PAT_PLAY;
-      if (this.patterns[pi].recording) {
+    // Pattern buttons (x=4..7): toggle record/play per pattern
+    if (x >= 4 && x < 4 + PATTERN_COUNT) {
+      const pi = x - 4;
+      const p = this.patterns[pi];
+      if (p.recording) {
+        // Stop recording, start playback
         this.stopPatternRecord(pi);
         this.startPatternPlayback(pi);
-      } else if (this.patterns[pi].count === 0) {
-        this.startPatternRecord(pi);
-      } else if (this.patterns[pi].playing) {
+      } else if (p.playing) {
         this.stopPatternPlayback(pi);
-      } else {
+      } else if (p.count > 0) {
+        // Has data, not playing — start playback
         this.startPatternPlayback(pi);
-      }
-      this.render();
-      return;
-    }
-
-    // Pattern record (x=12..15)
-    if (x >= FN_PAT_REC && x < FN_PAT_REC + PATTERN_COUNT) {
-      const pi = x - FN_PAT_REC;
-      if (this.patterns[pi].recording) {
-        this.stopPatternRecord(pi);
       } else {
+        // Empty — start recording
         this.startPatternRecord(pi);
       }
       this.render();
@@ -595,8 +566,9 @@ export class MlrCore {
   }
 
   // ─── CUT view grid handler ───
-  // OG MLR: tap = loop from slice, tap same pad again = stop (toggle)
+  // OG MLR: tap = loop from slice, tap same pad again = stop (toggle per-track)
   // Two fingers = set loop region on release
+  // ONCE mode: each tap starts a new one-shot, previous track continues
 
   gridkeyCUT(x, y, z, i, now) {
     const row = y;
@@ -616,14 +588,21 @@ export class MlrCore {
       if ((this.held[row] || 0) === 1) {
         this.first[row] = x;
 
-        // Toggle: if pressing same slice that's already playing, stop
         const track = this.tracks[i - 1];
-        if (track.play === 1 && this.lastSlice[i - 1] === x) {
-          this.event({ t: eSTOP, i });
-          this.lastSlice[i - 1] = -1;
-        } else {
+
+        if (track.mode === mONCE) {
+          // ONCE mode: always start a new one-shot, don't toggle off
           this.event({ t: eCUT, i, pos: x });
           this.lastSlice[i - 1] = x;
+        } else {
+          // CUT mode: toggle — same slice stops, different slice jumps
+          if (track.play === 1 && this.lastSlice[i - 1] === x) {
+            this.event({ t: eSTOP, i });
+            this.lastSlice[i - 1] = -1;
+          } else {
+            this.event({ t: eCUT, i, pos: x });
+            this.lastSlice[i - 1] = x;
+          }
         }
       } else if ((this.held[row] || 0) === 2) {
         this.second[row] = x;
@@ -680,70 +659,70 @@ export class MlrCore {
 
   drawNav(f) {
     const row = NAV_ROW;
-    f[row][NAV_REC] = this.view === vREC ? 15 : 3;
-    f[row][NAV_CUT] = this.view === vCUT ? 15 : 3;
-    f[row][NAV_CLIP] = this.view === vCLIP ? 15 : 3;
 
-    if (this.alt === 1) f[row][NAV_ALT] = 9;
-    if (this.quantize === 1) f[row][NAV_QUANT] = 9;
+    // View buttons: x=0 (REC), x=1 (CUT), x=2 (CLIP)
+    f[row][NAV_REC] = this.view === vREC ? 15 : 0;
+    f[row][NAV_CUT] = this.view === vCUT ? 15 : 0;
+    f[row][NAV_CLIP] = this.view === vCLIP ? 15 : 0;
+    f[row][3] = 0; // dark
 
+    // Patterns: x=4..7
     for (let i = 0; i < PATTERN_COUNT; i++) {
       const p = this.patterns[i];
       if (p.recording) f[row][NAV_PAT_START + i] = 15;
       else if (p.playing) f[row][NAV_PAT_START + i] = 9;
       else if (p.count > 0) f[row][NAV_PAT_START + i] = 5;
-      else f[row][NAV_PAT_START + i] = 3;
+      else f[row][NAV_PAT_START + i] = 0; // dark when empty
     }
 
+    // Recalls: x=8..11
     for (let i = 0; i < RECALL_COUNT; i++) {
       const r = this.recalls[i];
-      let b = 2;
+      let b = 0; // dark at baseline
       if (r.recording) b = 15;
       else if (r.active) b = 11;
       else if (r.has_data) b = 5;
       f[row][NAV_REC_START + i] = b;
     }
+
+    // x=12,13 dark
+    f[row][12] = 0;
+    f[row][13] = 0;
+
+    // Quantize: x=14
+    f[row][NAV_QUANT] = this.quantize === 1 ? 9 : 0;
+
+    // Alt: x=15
+    f[row][NAV_ALT] = this.alt === 1 ? 9 : 0;
   }
 
   drawFN(f) {
     const row = FN_ROW;
 
-    // View buttons mirror nav
-    f[row][0] = this.view === vCUT ? 15 : 3;
-    f[row][1] = this.view === vREC ? 15 : 3;
-    f[row][2] = this.view === vTIME ? 15 : 3;
-
-    // STOP ALL
-    f[row][FN_STOP_ALL] = 6; // always visible as warning
-
-    // Mode buttons
+    // Mode buttons (x=0..3): CUT, SOLO, MUTE, ONCE
     for (let m = 0; m < 4; m++) {
-      const col = FN_MODE_START + m;
+      const col = m; // x=0..3
       if (this.pendingMode === m) {
         f[row][col] = 15; // pending = bright
       } else {
-        // Show if any track has this mode
         const hasMode = this.tracks.some(t => t.mode === m);
         f[row][col] = hasMode ? 7 : 2;
       }
     }
 
-    // Pattern play buttons (x=8..11)
+    // Pattern buttons (x=4..7): one per pattern, toggle record/play
     for (let i = 0; i < PATTERN_COUNT; i++) {
       const p = this.patterns[i];
-      const col = FN_PAT_PLAY + i;
+      const col = 4 + i; // x=4..7
       if (p.recording) f[row][col] = 15;
       else if (p.playing) f[row][col] = 9;
       else if (p.count > 0) f[row][col] = 5;
-      else f[row][col] = 2;
+      else f[row][col] = 2; // empty = dim
     }
 
-    // Pattern record buttons (x=12..15)
-    for (let i = 0; i < PATTERN_COUNT; i++) {
-      const p = this.patterns[i];
-      const col = FN_PAT_REC + i;
-      if (p.recording) f[row][col] = 15;
-      else f[row][col] = 2;
+    // x=8..15 unused on bottom row — dark
+    for (let x = 8; x < 16; x++) {
+      f[row][x] = 0;
     }
   }
 
