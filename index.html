@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>MLR Web</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎛️</text></svg>" />
-  <link rel="stylesheet" href="css/style.css?v=og-rewrite-1" />
+  <link rel="stylesheet" href="css/style.css?v=og-rewrite-3" />
 </head>
 <body>
   <main class="app-shell">
@@ -29,17 +29,129 @@
       <input id="filePicker" type="file" accept="audio/*" multiple />
     </section>
 
-    <section class="grid-section">
-      <div id="grid" class="grid"></div>
+    <section class="workspace">
+      <div class="grid-area">
+        <div id="pending-mode-indicator"></div>
+        <div id="grid" class="grid"></div>
+      </div>
+      <aside class="tracks-area">
+        <div class="track-list" id="tracks"></div>
+      </aside>
     </section>
-
-    <section class="tracks" id="tracks"></section>
 
     <section class="patterns" id="patterns"></section>
 
     <section class="fn-ref" id="fnRef"></section>
+
+    <section class="docs-section" id="docs">
+      <h2>How to use MLR Web</h2>
+      <p class="docs-subtitle">A browser-based port of tehn/mlr — live sample cutting for monome grids.</p>
+      <div class="docs-grid">
+
+        <div class="docs-block docs-tip">
+          <h3>Getting started</h3>
+          <ul>
+            <li>Press <strong>Start audio</strong> to initialize the Web Audio context (required before anything plays).</li>
+            <li>Press <strong>Connect monome USB</strong> to connect your grid.</li>
+            <li>Load samples by clicking a track slot or dragging audio files onto it.</li>
+            <li>The app starts in <strong>CUT view</strong> — press pads on track rows (y=1–6) to trigger playback.</li>
+          </ul>
+        </div>
+
+        <div class="docs-block">
+          <h3>Grid layout</h3>
+          <ul>
+            <li><strong>Row 0 (top)</strong> — Nav: view buttons, STOP ALL, patterns, recalls, quantize, alt</li>
+            <li><strong>Rows 1–6</strong> — Tracks 1–6, columns = 16 slice positions</li>
+            <li><strong>Row 7 (bottom)</strong> — Functions: CUT/REC/TIME views, STOP ALL, track modes, pattern play/record</li>
+          </ul>
+        </div>
+
+        <div class="docs-block">
+          <h3>CUT view (default)</h3>
+          <p>Main performance view:</p>
+          <ul>
+            <li><strong>Tap a pad</strong> — Start looping from that slice position</li>
+            <li><strong>Tap same pad again</strong> — Stop that track (toggle)</li>
+            <li><strong>Tap different pad</strong> — Jump to new position, keep playing</li>
+            <li><strong>Two-finger press</strong> — Set loop region (release to confirm)</li>
+            <li>Bright dot = playhead, dim region = loop area</li>
+          </ul>
+        </div>
+
+        <div class="docs-block">
+          <h3>REC view</h3>
+          <p>Per-track parameter control:</p>
+          <ul>
+            <li><kbd>x=0</kbd> — Record arm</li>
+            <li><kbd>x=2,3</kbd> — Focus select (Alt = tempo map toggle)</li>
+            <li><kbd>x=7</kbd> — Reverse</li>
+            <li><kbd>x=8–14</kbd> — Speed (x=11 = 1×)</li>
+            <li><kbd>x=15</kbd> — Start / Stop track</li>
+          </ul>
+        </div>
+
+        <div class="docs-block">
+          <h3>Track modes (bottom row x=4–7)</h3>
+          <p>Press a mode button, then press a track row to apply:</p>
+          <ul>
+            <li><strong>CUT</strong> (x=4) — Normal: tap to loop, tap again to stop</li>
+            <li><strong>SOLO</strong> (x=5) — Mutes all other tracks</li>
+            <li><strong>MUTE</strong> (x=6) — Silences the track</li>
+            <li><strong>ONCE</strong> (x=7) — One-shot: plays through once without looping</li>
+          </ul>
+          <p>Press the same mode button again to cancel pending assignment.</p>
+        </div>
+
+        <div class="docs-block">
+          <h3>STOP ALL (bottom row x=3)</h3>
+          <p>Immediately stops all playing tracks. Available in the nav row (x=3) and bottom row (x=3).</p>
+        </div>
+
+        <div class="docs-block">
+          <h3>Patterns (nav x=4–7, bottom x=8–15)</h3>
+          <ul>
+            <li><strong>Empty</strong> — Press to start recording</li>
+            <li><strong>Recording</strong> — Press nav button to stop+play, or bottom rec to stop</li>
+            <li><strong>Playing</strong> — Press to stop</li>
+            <li><strong>Alt + press</strong> — Clear pattern</li>
+          </ul>
+          <p>Bottom row: x=8–11 = play, x=12–15 = record (dedicated buttons)</p>
+        </div>
+
+        <div class="docs-block">
+          <h3>Recalls (nav x=8–11)</h3>
+          <ul>
+            <li>1st press — Start recording all events</li>
+            <li>2nd press — Stop recording</li>
+            <li>3rd press — Replay captured events</li>
+            <li>Alt + press — Clear</li>
+          </ul>
+        </div>
+
+        <div class="docs-block">
+          <h3>Quantize &amp; Alt</h3>
+          <ul>
+            <li><kbd>Nav x=14</kbd> — Toggle quantize (hold events until clock tick)</li>
+            <li><kbd>Alt + x=14</kbd> — Enter TIME view</li>
+            <li><kbd>Nav x=15</kbd> — Alt modifier (hold for alternate functions)</li>
+          </ul>
+        </div>
+
+        <div class="docs-block docs-warning">
+          <h3>Monome connection</h3>
+          <p>Two connection methods, tried in order:</p>
+          <ol>
+            <li><strong>Bridge (WebSocket)</strong> — <code>localhost:8089</code>. Run serialosc-bridge on the machine with the monome.</li>
+            <li><strong>Web Serial</strong> — Direct USB via Chrome/Edge (HTTPS or localhost required).</li>
+          </ol>
+          <p>If the monome shows connected but pads do nothing, make sure <strong>audio has been started</strong>.</p>
+        </div>
+
+      </div>
+    </section>
   </main>
 
-  <script type="module" src="js/app.js?v=og-rewrite-1"></script>
+  <script type="module" src="js/app.js?v=og-rewrite-3"></script>
 </body>
 </html>

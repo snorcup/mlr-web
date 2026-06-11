@@ -1,5 +1,6 @@
 // mlr-core.js — faithful port of tehn/mlr v2.2.5
 // 6 tracks, 16 clips, 4 views (REC/CUT/CLIP/TIME), 4 patterns, 4 recalls
+// Bottom row: STOP ALL, mode buttons (CUT/SOLO/MUTE/ONCE), pattern play/record
 
 import { InternalClock } from './midi.js';
 
@@ -9,6 +10,7 @@ export const GRID_ROWS = 8;
 export const GRID_COLS = 16;
 export const NAV_ROW = 0;
 export const TRACK_ROW_START = 1; // y=1..6 are tracks
+export const FN_ROW = 7; // bottom function row
 export const PATTERN_COUNT = 4;
 export const RECALL_COUNT = 4;
 export const TIME_EPSILON = 0.000001;
@@ -19,6 +21,14 @@ export const vCUT = 2;
 export const vCLIP = 3;
 export const vTIME = 15;
 
+// Track modes
+export const mCUT = 0;
+export const mSOLO = 1;
+export const mMUTE = 2;
+export const mONCE = 3;
+export const MODE_NAMES = ['CUT', 'SOLO', 'MUTE', 'ONCE'];
+export const MODE_LABELS = ['C', 'S', 'M', '1'];
+
 // Event types
 const eCUT = 1;
 const eSTOP = 2;
@@ -28,32 +38,38 @@ const eSPEED = 5;
 const eREV = 6;
 const ePATTERN = 7;
 
-// Nav row button positions (x=0..15, y=0)
-const NAV_REC = 0;     // x=0: REC view
-const NAV_CUT = 1;     // x=1: CUT view
-const NAV_CLIP = 2;    // x=2: CLIP view
-const NAV_STOP = 3;    // x=3: unused in OG (was STOP ALL)
-const NAV_PAT_START = 4;  // x=4..7: Pattern 1-4
+// Nav row button positions (x=0..15, y=0) — using 0-indexed x
+const NAV_REC = 0;
+const NAV_CUT = 1;
+const NAV_CLIP = 2;
+const NAV_STOP_ALL = 3;
+const NAV_PAT_START = 4;  // x=4..7: Pattern 1-4 play
 const NAV_REC_START = 8;  // x=8..11: Recall 1-4
-const NAV_QUANT = 14;    // x=14: Quantize (alt=TIME)
-const NAV_ALT = 15;      // x=15: Alt modifier
+const NAV_QUANT = 14;
+const NAV_ALT = 15;
+
+// Bottom function row (y=7) — 0-indexed x
+const FN_VIEW_START = 0;   // x=0: CUT view, x=1: REC view, x=2: TIME view
+const FN_STOP_ALL = 3;     // x=3: STOP ALL
+const FN_MODE_START = 4;   // x=4: CUT mode, x=5: SOLO, x=6: MUTE, x=7: ONCE
+const FN_PAT_PLAY = 8;     // x=8..11: Pattern 1-4 play
+const FN_PAT_REC = 12;     // x=12..15: Pattern 1-4 record
 
 // REC view track columns
-const COL_REC = 0;       // x=0: record arm
-const COL_FOCUS_1 = 2;   // x=2: focus select
-const COL_FOCUS_2 = 3;   // x=3: focus select
-const COL_TEMPO = 4;     // x=4: tempo map
-const COL_REV = 7;       // x=7: reverse
-const COL_SPEED_1 = 8;   // x=8: speed=-4
-// speed columns: x=8..15 map to speed -4..+3, center x=11 is speed=0 (1x)
-const COL_STOP = 15;     // x=15: stop/start
+const COL_REC = 0;
+const COL_FOCUS_1 = 2;
+const COL_FOCUS_2 = 3;
+const COL_TEMPO = 4;
+const COL_REV = 7;
+const COL_SPEED_1 = 8;
+const COL_STOP = 15;
 
 function makeClip(i) {
   const CLIP_LEN_SEC = 4;
   return {
     name: '-',
     length: CLIP_LEN_SEC,
-    bpm: 60 / CLIP_LEN_SEC, // 15 bpm for 4s clip
+    bpm: 60 / CLIP_LEN_SEC,
   };
 }
 
@@ -68,12 +84,13 @@ function makeTrack(i) {
     loop: 0,
     loop_start: 0,
     loop_end: 16,
-    clip: i + 1, // each track starts pointing to its own clip (1-indexed)
+    clip: i + 1,
     pos: 0,
     pos_grid: -1,
-    speed: 0,    // speed value (-4..+3)
-    rev: 0,      // 0=forward, 1=reverse
-    tempo_map: 0, // 0=off, 1=on
+    speed: 0,
+    rev: 0,
+    tempo_map: 0,
+    mode: mCUT, // per-track mode
   };
 }
 
@@ -108,9 +125,9 @@ export class MlrCore {
     this.clock = new InternalClock({ bpm: 120, subdivision: 4 });
 
     // State
-    this.view = vREC;
-    this.view_prev = vREC;
-    this.focus = 1; // 1-indexed track focus (1..TRACKS)
+    this.view = vCUT; // default to CUT view (main performance view)
+    this.view_prev = vCUT;
+    this.focus = 1;
     this.alt = 0;
     this.quantize = 0;
 
@@ -136,12 +153,17 @@ export class MlrCore {
     this.second = Array.from({ length: GRID_ROWS }, () => 0);
 
     // CLIP view state
-    this.clip_action = 1; // 1=load, 2=clear, 3=save
-    this.clip_sel = 1;    // selected track for clip operations
-    this.clip_clear_mult = 3;
+    this.clip_action = 1;
+    this.clip_sel = 1;
 
-    // Speed mod per track (encoder offset)
+    // Speed mod per track
     this.speed_mod = Array.from({ length: TRACKS }, () => 0);
+
+    // Pending mode assignment (for bottom row mode buttons)
+    this.pendingMode = null; // null | mCUT | mSOLO | mMUTE | mONCE
+
+    // Track which slice each track was last triggered at (for toggle)
+    this.lastSlice = Array.from({ length: TRACKS }, () => -1);
   }
 
   // ─── View management ───
@@ -160,7 +182,6 @@ export class MlrCore {
   }
 
   get div() {
-    // quant_div parameter, default 4 (1/16 notes at 4 ticks per beat)
     return this._quant_div / 4;
   }
 
@@ -173,12 +194,10 @@ export class MlrCore {
   }
 
   tick(now) {
-    // Quantize clock
     if (this.quantize && this.clock.shouldTick(now)) {
       const q = this.quantize_events.splice(0);
       q.forEach(e => this.event_exec(e));
     }
-    // Pattern playback
     this.tickPatterns(now);
     this.render();
   }
@@ -214,21 +233,17 @@ export class MlrCore {
   event_exec(e) {
     const i = e.i; // 1-indexed track
     if (e.t === eCUT) {
-      // Jump to slice position
       const track = this.tracks[i - 1];
       const clip = this.clips[track.clip - 1];
       if (!clip) return;
-      // If looping, reset loop to full clip first
       if (track.loop === 1) {
         track.loop = 0;
         this.audio?.setLoop(i, 0);
       }
-      const cut = (e.pos / 16) * clip.length;
       this.audio?.jump(i, e.pos);
       if (track.play === 0) {
         track.play = 1;
         this.audio?.setPlay(i, 1);
-        // Lag: small delay before fading in level
         setTimeout(() => {
           this.audio?.setLevel(i, track.vol);
         }, 60);
@@ -261,7 +276,7 @@ export class MlrCore {
       this.tracks[i - 1].rev = e.rev;
       this.updateRate(i);
     } else if (e.t === ePATTERN) {
-      const pi = e.i - 1; // 0-indexed pattern
+      const pi = e.i - 1;
       if (e.action === 'stop') this.stopPatternPlayback(pi);
       else if (e.action === 'start') this.startPatternPlayback(pi);
       else if (e.action === 'rec_stop') this.stopPatternRecord(pi);
@@ -270,7 +285,7 @@ export class MlrCore {
     }
   }
 
-  // ─── Rate calculation (mirrors OG update_rate) ───
+  // ─── Rate calculation ───
 
   updateRate(i) {
     const track = this.tracks[i - 1];
@@ -278,7 +293,7 @@ export class MlrCore {
     if (track.rev === 1) n = -n;
     if (track.tempo_map === 1) {
       const clip = this.clips[track.clip - 1];
-      const bpmmod = 120 / clip.bpm; // assumes clock_tempo=120
+      const bpmmod = 120 / clip.bpm;
       n = n * bpmmod;
     }
     this.audio?.setRate(i, n);
@@ -345,10 +360,31 @@ export class MlrCore {
     }
   }
 
+  // ─── STOP ALL ───
+
+  stopAll() {
+    for (let i = 1; i <= TRACKS; i++) {
+      this.event({ t: eSTOP, i });
+    }
+    this.audio?.stopAll?.();
+  }
+
+  // ─── Per-track mode ───
+
+  setTrackMode(trackIndex, mode) {
+    this.tracks[trackIndex - 1].mode = mode;
+    this.audio?.setMode?.(trackIndex, MODE_NAMES[mode]);
+  }
+
+  cycleTrackMode(trackIndex) {
+    const track = this.tracks[trackIndex - 1];
+    const next = (track.mode + 1) % 4;
+    this.setTrackMode(trackIndex, next);
+  }
+
   // ─── Grid key handler ───
 
   handleGridKey({ x, y, state }, now = 0) {
-    // Normalize: UI sends boolean true/false, OG uses 1/0
     const z = state ? 1 : 0;
 
     // Nav row
@@ -359,7 +395,16 @@ export class MlrCore {
 
     // Track rows (y=1..6)
     if (y >= TRACK_ROW_START && y < TRACK_ROW_START + TRACKS) {
-      const i = y; // track index (1-based, since y=1 -> track 1)
+      const i = y; // track index (1-based)
+
+      // If a mode is pending, apply it to this track
+      if (this.pendingMode !== null && z === 1) {
+        this.setTrackMode(i, this.pendingMode);
+        this.pendingMode = null;
+        this.render();
+        return;
+      }
+
       if (this.view === vREC) {
         this.gridkeyREC(x, y, z, i, now);
       } else if (this.view === vCUT) {
@@ -371,7 +416,10 @@ export class MlrCore {
       }
     }
 
-    // Row 7 (y=7) is unused in OG
+    // Bottom function row (y=7)
+    if (y === FN_ROW) {
+      this.gridkeyFN(x, z, now);
+    }
   }
 
   // ─── Nav row handler ───
@@ -387,8 +435,10 @@ export class MlrCore {
         this.setView(vCUT);
       } else if (x === NAV_CLIP) {
         this.setView(vCLIP);
+      } else if (x === NAV_STOP_ALL) {
+        this.stopAll();
       } else if (x >= NAV_PAT_START && x < NAV_PAT_START + PATTERN_COUNT) {
-        const pi = x - NAV_PAT_START; // 0-indexed
+        const pi = x - NAV_PAT_START;
         if (this.alt === 1) {
           this.clearPattern(pi);
         } else if (this.patterns[pi].recording) {
@@ -427,7 +477,7 @@ export class MlrCore {
       if (x === NAV_ALT) {
         this.alt = 0;
       } else if (x === NAV_QUANT && this.view === vTIME) {
-        this.setView(-1); // return to previous view
+        this.setView(-1);
       } else if (x >= NAV_REC_START && x < NAV_REC_START + RECALL_COUNT) {
         this.recalls[x - NAV_REC_START].active = false;
       }
@@ -441,13 +491,77 @@ export class MlrCore {
     }
   }
 
+  // ─── Bottom function row handler ───
+
+  gridkeyFN(x, z, now) {
+    if (z !== 1) {
+      // Release: clear pending mode highlight
+      if (x >= FN_MODE_START && x < FN_MODE_START + 4) {
+        // mode button released
+      }
+      return;
+    }
+
+    // View buttons (x=0,1,2)
+    if (x === 0) { this.setView(vCUT); return; }
+    if (x === 1) { this.setView(vREC); return; }
+    if (x === 2) { this.setView(vTIME); return; }
+
+    // STOP ALL
+    if (x === FN_STOP_ALL) {
+      this.stopAll();
+      return;
+    }
+
+    // Mode buttons (x=4..7) — set pending mode, apply on next track press
+    if (x >= FN_MODE_START && x < FN_MODE_START + 4) {
+      const mode = x - FN_MODE_START;
+      if (this.pendingMode === mode) {
+        // Press same mode again = cancel
+        this.pendingMode = null;
+      } else {
+        this.pendingMode = mode;
+      }
+      this.render();
+      return;
+    }
+
+    // Pattern play (x=8..11)
+    if (x >= FN_PAT_PLAY && x < FN_PAT_PLAY + PATTERN_COUNT) {
+      const pi = x - FN_PAT_PLAY;
+      if (this.patterns[pi].recording) {
+        this.stopPatternRecord(pi);
+        this.startPatternPlayback(pi);
+      } else if (this.patterns[pi].count === 0) {
+        this.startPatternRecord(pi);
+      } else if (this.patterns[pi].playing) {
+        this.stopPatternPlayback(pi);
+      } else {
+        this.startPatternPlayback(pi);
+      }
+      this.render();
+      return;
+    }
+
+    // Pattern record (x=12..15)
+    if (x >= FN_PAT_REC && x < FN_PAT_REC + PATTERN_COUNT) {
+      const pi = x - FN_PAT_REC;
+      if (this.patterns[pi].recording) {
+        this.stopPatternRecord(pi);
+      } else {
+        this.startPatternRecord(pi);
+      }
+      this.render();
+      return;
+    }
+  }
+
   // ─── REC view grid handler ───
 
   gridkeyREC(x, y, z, i, now) {
     if (z !== 1) return;
     const track = this.tracks[i - 1];
 
-    // Focus select (x=2,3)
     if (x === COL_FOCUS_1 || x === COL_FOCUS_2) {
       if (this.alt === 1) {
         track.tempo_map = 1 - track.tempo_map;
@@ -455,32 +569,21 @@ export class MlrCore {
       } else if (this.focus !== i) {
         this.focus = i;
       }
-    }
-    // Record arm (x=0)
-    else if (x === COL_REC) {
+    } else if (x === COL_REC) {
       track.rec = 1 - track.rec;
       this.audio?.setRec(i, track.rec);
-    }
-    // Tempo map (x=4)
-    else if (x === COL_TEMPO) {
+    } else if (x === COL_TEMPO) {
       if (this.alt === 1) {
         track.tempo_map = 1 - track.tempo_map;
         this.updateRate(i);
       }
-    }
-    // Reverse (x=7)
-    else if (x === COL_REV) {
+    } else if (x === COL_REV) {
       const n = 1 - track.rev;
       this.event({ t: eREV, i, rev: n });
-    }
-    // Speed (x=8..14 0-indexed, maps to speed -3..+3)
-    // OG: x=9..15 (1-indexed), speed = x-12
-    else if (x >= 8 && x <= 14) {
-      const speed = x - 11; // x=8→-3, x=11→0, x=14→+3
+    } else if (x >= 8 && x <= 14) {
+      const speed = x - 11;
       this.event({ t: eSPEED, i, speed });
-    }
-    // Stop/Start (x=15)
-    else if (x === COL_STOP) {
+    } else if (x === COL_STOP) {
       if (track.play === 1) {
         this.event({ t: eSTOP, i });
       } else {
@@ -492,7 +595,8 @@ export class MlrCore {
   }
 
   // ─── CUT view grid handler ───
-  // OG MLR: single press = jump to position. two fingers = set loop on release.
+  // OG MLR: tap = loop from slice, tap same pad again = stop (toggle)
+  // Two fingers = set loop region on release
 
   gridkeyCUT(x, y, z, i, now) {
     const row = y;
@@ -510,15 +614,21 @@ export class MlrCore {
       }
 
       if ((this.held[row] || 0) === 1) {
-        // First finger: jump to slice position
         this.first[row] = x;
-        this.event({ t: eCUT, i, pos: x });
+
+        // Toggle: if pressing same slice that's already playing, stop
+        const track = this.tracks[i - 1];
+        if (track.play === 1 && this.lastSlice[i - 1] === x) {
+          this.event({ t: eSTOP, i });
+          this.lastSlice[i - 1] = -1;
+        } else {
+          this.event({ t: eCUT, i, pos: x });
+          this.lastSlice[i - 1] = x;
+        }
       } else if ((this.held[row] || 0) === 2) {
-        // Second finger: prepare for loop
         this.second[row] = x;
       }
     } else if (z === 0) {
-      // On release: if we had two fingers, set loop
       if ((this.held[row] || 0) === 1 && this.heldmax[row] === 2) {
         const ls = Math.min(this.first[row], this.second[row]);
         const le = Math.max(this.first[row], this.second[row]);
@@ -534,10 +644,9 @@ export class MlrCore {
 
   gridkeyCLIP(x, y, z, i) {
     if (z !== 1) return;
-    // x=0..6 (7 clip slots), y=1..6 (tracks)
     if (x < 7 && y >= TRACK_ROW_START && y < TRACK_ROW_START + TRACKS) {
       this.clip_sel = i;
-      this.setClip(i, x + 1); // clips are 1-indexed
+      this.setClip(i, x + 1);
     }
     this.render();
   }
@@ -553,8 +662,8 @@ export class MlrCore {
   framebuffer() {
     const f = Array.from({ length: GRID_ROWS }, () => Array(GRID_COLS).fill(0));
 
-    // Always draw nav row
     this.drawNav(f);
+    this.drawFN(f);
 
     if (this.view === vREC) {
       this.drawREC(f);
@@ -571,18 +680,13 @@ export class MlrCore {
 
   drawNav(f) {
     const row = NAV_ROW;
-    // View buttons
     f[row][NAV_REC] = this.view === vREC ? 15 : 3;
     f[row][NAV_CUT] = this.view === vCUT ? 15 : 3;
     f[row][NAV_CLIP] = this.view === vCLIP ? 15 : 3;
 
-    // Alt indicator
     if (this.alt === 1) f[row][NAV_ALT] = 9;
-
-    // Quantize
     if (this.quantize === 1) f[row][NAV_QUANT] = 9;
 
-    // Patterns
     for (let i = 0; i < PATTERN_COUNT; i++) {
       const p = this.patterns[i];
       if (p.recording) f[row][NAV_PAT_START + i] = 15;
@@ -591,7 +695,6 @@ export class MlrCore {
       else f[row][NAV_PAT_START + i] = 3;
     }
 
-    // Recalls
     for (let i = 0; i < RECALL_COUNT; i++) {
       const r = this.recalls[i];
       let b = 2;
@@ -602,8 +705,49 @@ export class MlrCore {
     }
   }
 
+  drawFN(f) {
+    const row = FN_ROW;
+
+    // View buttons mirror nav
+    f[row][0] = this.view === vCUT ? 15 : 3;
+    f[row][1] = this.view === vREC ? 15 : 3;
+    f[row][2] = this.view === vTIME ? 15 : 3;
+
+    // STOP ALL
+    f[row][FN_STOP_ALL] = 6; // always visible as warning
+
+    // Mode buttons
+    for (let m = 0; m < 4; m++) {
+      const col = FN_MODE_START + m;
+      if (this.pendingMode === m) {
+        f[row][col] = 15; // pending = bright
+      } else {
+        // Show if any track has this mode
+        const hasMode = this.tracks.some(t => t.mode === m);
+        f[row][col] = hasMode ? 7 : 2;
+      }
+    }
+
+    // Pattern play buttons (x=8..11)
+    for (let i = 0; i < PATTERN_COUNT; i++) {
+      const p = this.patterns[i];
+      const col = FN_PAT_PLAY + i;
+      if (p.recording) f[row][col] = 15;
+      else if (p.playing) f[row][col] = 9;
+      else if (p.count > 0) f[row][col] = 5;
+      else f[row][col] = 2;
+    }
+
+    // Pattern record buttons (x=12..15)
+    for (let i = 0; i < PATTERN_COUNT; i++) {
+      const p = this.patterns[i];
+      const col = FN_PAT_REC + i;
+      if (p.recording) f[row][col] = 15;
+      else f[row][col] = 2;
+    }
+  }
+
   drawREC(f) {
-    // Focus indicator
     f[COL_FOCUS_1][this.focus] = 7;
     f[COL_FOCUS_2][this.focus] = 7;
 
@@ -611,27 +755,20 @@ export class MlrCore {
       const y = TRACK_ROW_START + i;
       const track = this.tracks[i];
 
-      // Rec arm
       f[y][COL_REC] = 3;
       if (track.rec === 1) f[y][COL_REC] = 9;
 
-      // Tempo map
       if (track.tempo_map === 1) f[y][COL_TEMPO] = 7;
 
-      // Reverse
       f[y][COL_REV] = 3;
       if (track.rev === 1) f[y][COL_REV] = 7;
 
-      // Speed indicator: OG x=12 (1-indexed) = x=11 (0-indexed) for speed=0 (1x)
-      // Speed range: -3..+3, mapped to x=9..15 (1-indexed) = x=8..14 (0-indexed)
-      // x=8 (0-indexed) = reverse button, x=15 = stop/start
-      const speedCol = 11 + track.speed; // speed 0 -> x=11, speed -3 -> x=8, speed +3 -> x=14
+      const speedCol = 11 + track.speed;
       if (speedCol >= 8 && speedCol <= 14) {
         f[y][speedCol] = 9;
       }
-      f[y][11] = 3; // speed=0 (1x) center marker
+      f[y][11] = 3;
 
-      // Stop/Start
       f[y][COL_STOP] = 3;
       if (track.play === 1) f[y][COL_STOP] = 15;
     }
@@ -660,11 +797,9 @@ export class MlrCore {
   }
 
   drawCLIP(f) {
-    // Highlight clip selection for selected track
     for (let i = 0; i < CLIPS; i++) {
       f[TRACK_ROW_START + this.clip_sel - 1][i] = 4;
     }
-    // Show current clip assignment per track
     for (let i = 0; i < TRACKS; i++) {
       const clipIdx = this.tracks[i].clip - 1;
       if (clipIdx >= 0 && clipIdx < GRID_COLS) {
@@ -674,8 +809,7 @@ export class MlrCore {
   }
 
   drawTIME(f) {
-    // TIME view: minimal grid, just nav row
-    // (tempo/quantize controlled via encoders in OG)
+    // TIME view: minimal grid
   }
 
   render() {
@@ -695,6 +829,7 @@ export class MlrCore {
       recalls: this.recalls,
       clip_action: this.clip_action,
       clip_sel: this.clip_sel,
+      pendingMode: this.pendingMode,
     };
   }
 }

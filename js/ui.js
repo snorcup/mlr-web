@@ -1,6 +1,8 @@
 // ui.js — DOM adapter for web-mlr
 // 16×8 grid mirroring OG MLR layout
 
+import { MODE_NAMES, MODE_LABELS } from './mlr-core.js';
+
 export class UI {
   constructor() {
     this.grid = document.getElementById('grid');
@@ -15,7 +17,9 @@ export class UI {
     for (let y = 0; y < 8; y++) {
       for (let x = 0; x < 16; x++) {
         const b = document.createElement('button');
-        b.className = 'pad' + (y === 0 ? ' nav' : (y === 7 ? ' fn' : ''));
+        b.className = 'pad';
+        if (y === 0) b.classList.add('nav');
+        if (y === 7) b.classList.add('fn');
         b.dataset.x = x;
         b.dataset.y = y;
         b.ariaLabel = `pad ${x},${y}`;
@@ -31,9 +35,11 @@ export class UI {
       d.className = 'track';
       d.dataset.track = i;
       d.innerHTML = `
-        <strong>${i + 1}</strong>
-        <span class="track-mode" id="track-mode-${i}"></span>
-        <span class="muted" id="clip-${i}">drop audio or click to pick</span>
+        <div class="track-header">
+          <span class="track-num">${i + 1}</span>
+          <span class="track-mode" id="track-mode-${i}"></span>
+        </div>
+        <span class="track-clip" id="clip-${i}">drop audio or click to pick</span>
         <div class="track-meter"><span id="meter-${i}"></span></div>
       `;
       d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('drop-hover'); });
@@ -103,16 +109,13 @@ export class UI {
     });
   }
 
-  // Update nav button states
   updateNav(state) {
     if (!state) return;
     document.getElementById('fn-rec')?.classList.toggle('active', state.view === 1);
     document.getElementById('fn-cut')?.classList.toggle('active', state.view === 2);
     document.getElementById('fn-clip')?.classList.toggle('active', state.view === 3);
     document.getElementById('fn-quantize')?.classList.toggle('active', state.quantize);
-    document.getElementById('fn-alt')?.classList.toggle('active', state.alt);
 
-    // Pattern play/record LEDs
     (state.patterns || []).forEach((p, i) => {
       const playBtn = document.getElementById(`fn-p${i + 1}-play`);
       const recBtn = document.getElementById(`fn-p${i + 1}-rec`);
@@ -121,20 +124,33 @@ export class UI {
     });
   }
 
-  // Update track mode badges
   updateTrackModes(tracks) {
     if (!tracks) return;
     for (let i = 0; i < tracks.length; i++) {
       const el = document.getElementById(`track-mode-${i}`);
       if (!el) continue;
       const t = tracks[i];
-      let label = '';
+      const modeLabel = MODE_LABELS[t.mode] || 'C';
       let cls = 'track-mode';
-      if (t.rec) { label = 'R'; cls += ' mode-rec'; }
-      if (t.rev) { label = '←'; cls += ' mode-rev'; }
-      if (t.tempo_map) { label = 'T'; cls += ' mode-tempo'; }
-      el.textContent = label;
+      if (t.mode === 1) cls += ' mode-solo';
+      else if (t.mode === 2) cls += ' mode-mute';
+      else if (t.mode === 3) cls += ' mode-once';
+      if (t.rec) cls += ' mode-rec';
+      el.textContent = modeLabel;
       el.className = cls;
+    }
+  }
+
+  updatePendingMode(pendingMode) {
+    // Highlight the pending mode indicator in the UI
+    const indicator = document.getElementById('pending-mode-indicator');
+    if (indicator) {
+      if (pendingMode !== null) {
+        indicator.textContent = `Mode: ${MODE_NAMES[pendingMode]} — press a track to apply`;
+        indicator.style.display = 'block';
+      } else {
+        indicator.style.display = 'none';
+      }
     }
   }
 }

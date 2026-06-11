@@ -4,7 +4,7 @@
 import { AudioEngine } from './audio-engine.js';
 import { MonomeSerial, MonomeBridge } from './monome.js';
 import { MidiManager } from './midi.js';
-import { MlrCore, vREC, vCUT, vCLIP, vTIME } from './mlr-core.js';
+import { MlrCore, vREC, vCUT, vCLIP, mCUT, mSOLO, mMUTE, mONCE, MODE_NAMES, MODE_LABELS } from './mlr-core.js';
 import { UI, setPill } from './ui.js';
 
 const audio = new AudioEngine(6);
@@ -41,6 +41,7 @@ const core = new MlrCore({
     ui.renderPatterns(state.patterns);
     ui.updateNav(state);
     ui.updateTrackModes(state.tracks);
+    ui.updatePendingMode(state.pendingMode);
     await monome?.draw(frame);
   },
 });
@@ -79,7 +80,6 @@ document.getElementById('connectMonome').onclick = async () => {
     console.log('[monome status]', s);
     setPill('monomeStatus', s, s.startsWith('connected') || s === 'bridge connected' ? 'ok' : 'warn');
   };
-  // Try bridge first
   try {
     statusHandler('connecting to bridge...');
     monome = new MonomeBridge({ onKey: keyHandler, onStatus: statusHandler });
@@ -90,7 +90,6 @@ document.getElementById('connectMonome').onclick = async () => {
     console.log('[monome] bridge failed:', err.message);
     statusHandler('bridge failed: ' + err.message);
   }
-  // Fall back to Web Serial
   try {
     statusHandler('connecting via Web Serial...');
     monome = new MonomeSerial({ onKey: keyHandler, onStatus: statusHandler });
@@ -112,7 +111,7 @@ document.getElementById('connectMidi').onclick = async () => {
   }
 };
 
-// ─── Pattern buttons ───
+// ─── Pattern buttons (HTML fallback) ───
 
 document.querySelectorAll('[data-pattern-action]').forEach(button => {
   button.addEventListener('click', () => {

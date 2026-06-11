@@ -1,5 +1,5 @@
 // audio-engine.js — softcut-like audio engine for web-mlr
-// 6 tracks, 16 clips, per-track rate/reverse/loop/volume/fade
+// 6 tracks, 16 clips, per-track rate/reverse/loop/volume/fade/mode
 
 export class AudioEngine {
   constructor(trackCount = 6) {
@@ -25,9 +25,10 @@ export class AudioEngine {
       loopEnd: null, // null = full clip
       volume: 1,
       muted: false,
+      mode: 'CUT', // CUT | SOLO | MUTE | ONCE
       rec: 0,
-      fadeTime: 0.01, // OG: FADE = 0.01
-      levelSlew: 0.1,  // OG: level_slew_time = 0.1
+      fadeTime: 0.01,
+      levelSlew: 0.1,
     };
   }
 
@@ -43,7 +44,7 @@ export class AudioEngine {
     if (this.phasePollInterval) return;
     this.phasePollInterval = setInterval(() => {
       this.pollPhase();
-    }, 50); // 50ms poll for playhead position
+    }, 50);
   }
 
   stopPhasePoll() {
@@ -82,12 +83,18 @@ export class AudioEngine {
     const clip = this.ensureClip(track);
     if (!clip) return false;
 
+    // If already playing at same slice, toggle off (stop)
+    if (track.playing && track.offset === (Math.max(0, Math.min(15, slice)) / 16) * clip.duration) {
+      this.stopTrack(trackIndex);
+      return true;
+    }
+
     this.stopTrack(trackIndex, false);
 
     const source = new AudioBufferSourceNode(this.context, {
       buffer: clip.buffer,
       playbackRate: track.rate,
-      loop: track.loop,
+      loop: track.mode === 'ONCE' ? false : track.loop,
     });
 
     const gain = new GainNode(this.context, {
@@ -97,7 +104,75 @@ export class AudioEngine {
     const sliceOffset = (Math.max(0, Math.min(15, slice)) / 16) * clip.duration;
 
     // Set loop points
-    if (track.loop) {
+    if (track.loop && track.mode !== 'ONCE') {
+      if (track.loopEnd !== null) {
+        source.loopStart = (track.loopStart / 16) * clip.duration;
+        source.loopEnd = (track.loopEnd / 16) * clip.duration;
+      } else {
+        source.loopStart = sliceOffset;
+        source.loopEnd = clip.duration;
+      }
+    }
+
+    source.connect(gain).connect(this.master);
+    source.start(0, sliceOffset);
+
+    track.source = source;
+    track.gain = gain;
+    track.playing = true;
+    track.startedAt = this.context.currentTime;
+    track.offset = sliceOffset;
+
+    // Handle SOLO: mute all other tracks
+    if (track.mode === 'SOLO') {
+      for (let i = 0; i < this.tracks.length; i++) {
+        if (i !== trackIndex - 1) {
+          const other = this.tracks[i];
+          if (other.gain && !other.muted) {
+            other.gain.gain.setTargetAtTime(0, this.context.currentTime, other.levelSlew / 3);
+          }
+        }
+      }
+    }
+
+    source.onended = () => {
+      if (track.source === source) {
+        track.playing = false;
+        track.source = null;
+      }
+    };
+
+    return true;
+  }
+
+  jump(trackIndex, slice) {
+    const track = this.tracks[trackIndex - 1];
+    if (!track) return false;
+    const clip = this.ensureClip(track);
+    if (!clip) return false;
+
+    if (!track.playing) {
+      // Not playing — start from slice
+      return this.playTrack(trackIndex, slice);
+    }
+
+    // Already playing — just reposition
+    const sliceOffset = (Math.max(0, Math.min(15, slice)) / 16) * clip.duration;
+
+    // Stop current source and start new one at position
+    this.stopTrack(trackIndex, false);
+
+    const source = new AudioBufferSourceNode(this.context, {
+      buffer: clip.buffer,
+      playbackRate: track.rate,
+      loop: track.mode === 'ONCE' ? false : track.loop,
+    });
+
+    const gain = new GainNode(this.context, {
+      gain: track.muted ? 0 : track.volume,
+    });
+
+    if (track.loop && track.mode !== 'ONCE') {
       if (track.loopEnd !== null) {
         source.loopStart = (track.loopStart / 16) * clip.duration;
         source.loopEnd = (track.loopEnd / 16) * clip.duration;
@@ -126,16 +201,28 @@ export class AudioEngine {
     return true;
   }
 
-  jump(trackIndex, slice) {
-    return this.playTrack(trackIndex, slice);
-  }
-
   stopTrack(trackIndex, markStopped = true) {
     const track = this.tracks[trackIndex - 1];
     if (!track) return;
     try { track.source?.stop(); } catch {}
     if (markStopped) track.playing = false;
     track.source = null;
+
+    // If this track was SOLO, unmute others
+    if (track.mode === 'SOLO') {
+      for (let i = 0; i < this.tracks.length; i++) {
+        const other = this.tracks[i];
+        if (other.gain && !other.muted) {
+          other.gain.gain.setTargetAtTime(other.volume, this.context.currentTime, other.levelSlew / 3);
+        }
+      }
+    }
+  }
+
+  stopAll() {
+    for (let i = 1; i <= this.tracks.length; i++) {
+      this.stopTrack(i);
+    }
   }
 
   // ─── Per-track controls ───
@@ -150,7 +237,6 @@ export class AudioEngine {
   }
 
   setLevel(trackIndex, level) {
-    // Immediate level change (for lag-based fade in/out)
     const track = this.tracks[trackIndex - 1];
     if (!track || !track.gain) return;
     track.gain.gain.setValueAtTime(level, this.context.currentTime);
@@ -213,6 +299,56 @@ export class AudioEngine {
     }
   }
 
+  setMode(trackIndex, mode) {
+    const track = this.tracks[trackIndex - 1];
+    if (!track) return;
+    const oldMode = track.mode;
+    track.mode = mode;
+
+    // Handle mode transitions
+    if (mode === 'MUTE') {
+      if (track.gain) {
+        track.gain.gain.setTargetAtTime(0, this.context.currentTime, track.levelSlew / 3);
+      }
+    } else if (mode === 'SOLO') {
+      // Mute all other tracks
+      for (let i = 0; i < this.tracks.length; i++) {
+        if (i !== trackIndex - 1) {
+          const other = this.tracks[i];
+          if (other.gain) {
+            other.gain.gain.setTargetAtTime(0, this.context.currentTime, other.levelSlew / 3);
+          }
+        }
+      }
+      // Unmute this track
+      if (track.gain && !track.muted) {
+        track.gain.gain.setTargetAtTime(track.volume, this.context.currentTime, track.levelSlew / 3);
+      }
+    } else if (oldMode === 'MUTE' || oldMode === 'SOLO') {
+      // Unmute all tracks
+      for (let i = 0; i < this.tracks.length; i++) {
+        const other = this.tracks[i];
+        if (other.gain && !other.muted) {
+          other.gain.gain.setTargetAtTime(other.volume, this.context.currentTime, other.levelSlew / 3);
+        }
+      }
+    }
+
+    // Update source loop behavior for ONCE mode
+    if (track.source) {
+      if (mode === 'ONCE') {
+        track.source.loop = false;
+      } else if (oldMode === 'ONCE' && track.loop) {
+        const clip = this.ensureClip(track);
+        track.source.loop = true;
+        if (track.loopEnd !== null) {
+          track.source.loopStart = (track.loopStart / 16) * clip.duration;
+          track.source.loopEnd = (track.loopEnd / 16) * clip.duration;
+        }
+      }
+    }
+  }
+
   assignClip(trackIndex, clipIndex) {
     const track = this.tracks[trackIndex - 1];
     if (!track) return;
@@ -234,7 +370,7 @@ export class AudioEngine {
 
       const elapsed = (this.context.currentTime - track.startedAt) * Math.abs(track.rate);
       let pos;
-      if (track.loop && track.loopEnd !== null) {
+      if (track.loop && track.loopEnd !== null && track.mode !== 'ONCE') {
         const loopStart = (track.loopStart / 16) * clip.duration;
         const loopEnd = (track.loopEnd / 16) * clip.duration;
         const loopLen = loopEnd - loopStart;
